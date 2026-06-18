@@ -26,13 +26,13 @@ Gawin eliminates the boilerplate and friction found in traditional systems langu
 
 1. **Blazing Fast Memory Performance:** Speeds that rival or outmatch C in heavily allocation-driven workloads (see benchmarks).
 2. **Rapid Prototyping:** A clean syntax designed to get out of your way, letting you write code as fast as you can think.
-3. **No-Friction Safety:** Enjoy memory safety via deterministic Automatic Reference Counting (ARC)—no complex borrow checkers, no runtime GC pauses.
+3. **No-Friction Safety:** Enjoy memory safety via deterministic Static Reference Counting (SRC), no complex borrow checkers, and no runtime GC pauses.
 4. **Instant Readability:** A syntax designed to be easily read and understood, even by developers new to systems programming.
 5. **True Zero-Cost Abstractions:** High-level code that compiles down to highly optimized, minimal native binaries.
 
 ### Who is Gawin for?
 
-**Gawin** is for anybody wanting a language that combines Go's readability, with the safety of an *ARC-managed language*, and the speed of C (give or take depending on workload). Gawin is definitely something for you if you are tired of the binary bloat of other languages or of the gruesome setup/installing procedure.
+**Gawin** is for anybody wanting a language that combines Go's readability, with the safety of an *SRC-managed language*, and the speed of C (give or take depending on workload). Gawin is definitely something for you if you are tired of the binary bloat of other languages or of the gruesome setup/installing procedure.
 
 Gawin handles the setup/installing procedure for you automatically and keeps its binaries small due to its strict philosophy!
 
