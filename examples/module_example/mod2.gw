@@ -1,0 +1,4 @@
+module myMod
+
+myMod::#InternalStruct // should not be able to see this from mod1.g
+

@@ -1,0 +1,49 @@
+/*
+ * The Gawin Style Guide (GSG)
+ *
+ * IMPORTANT:
+ * |--------> The GSG is enforced by the compiler at the Lexer-level and if it is unambiguous, the GSG is enforced at the Parser-level
+ * |--------> Sentences marked with [X] are excluded by this compiler check but are still encouraged to be followed
+ *
+ * structs, enums, and variants are written in PascalCase
+ * variants in a variant are written in PascalCase                                              
+ * variants in an enum are written in lowercase and if needed in snake_case (plus_assign '+=')  
+ * fields in a struct are written in snake_case                                                 
+ *
+ * variables and functions are written in snake_case
+ * constants are written in SCREAMING_SNAKE_CASE
+ * modules are written in camelCase
+ *
+ * stdlib modules are written in lowercase
+ * primitive types are written in lowercase
+ *
+ * Generics are PascalCase with preferably one-to-two-character names (Ty, T, V, Uy, Dx, K)     [X]
+ *
+ * Examples below
+ */
+
+struct MyType {
+	field_one: str
+}
+
+enum MyEnum {
+	val
+}
+
+variant MyVariant {
+	Variant(str)
+}
+
+type StringAlias = str
+
+my_var: str := "Hello, World!" // immutable by default
+
+func foo_example() -> void {
+	return none
+}
+
+const GLOBAL_VAR := "Hello from Global!" // globals are basically #define but better#
+
+module camelCase
+
+module stdfs

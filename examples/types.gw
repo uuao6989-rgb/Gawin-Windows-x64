@@ -1,0 +1,3 @@
+type Option[type T] = ?T
+
+type Result[type T, !!type E] = T, Definitely(!!E)

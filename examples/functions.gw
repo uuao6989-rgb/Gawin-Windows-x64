@@ -1,0 +1,13 @@
+func possible_error(input: str) -> !!str {
+    return if input.length() > 5 { !!Error("Why do you want to input such a long word?") } else { input }
+}
+
+func main() {
+    value := match possible_error("Hello") {
+        !!err then panic("[ERROR]: $(err)") // you can 'alias' the !! error-type with a name like here called err (!!err -> error type named err for immediate and temporary use)
+        s then s
+    }
+
+    println(value)
+}
+

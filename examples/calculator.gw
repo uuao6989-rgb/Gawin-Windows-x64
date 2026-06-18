@@ -1,0 +1,82 @@
+import math
+
+enum Mode {
+    basecalc
+}
+
+func main(args: []str) {
+    mut mode := Mode.basecalc
+    if args.len < 2 {
+        if preadln("Do you want to initiate the default mode (basecalc)? (y/N) ").to_lower()[0] == 'n' {
+            println("Then please input the mode you want to use when starting the program.")
+            exit(0)
+        }
+    } else {
+        mode = make_mode(args[1]) // args[0] == executable name (full path)
+    }
+
+    match mode {
+        .basecalc then basecalc()
+        default then exit(1)
+    }
+}
+
+/*
+    --- helpers ---
+*/
+
+func make_mode(s: str) -> Mode {
+    return match s {
+        "basecalc" then Mode.basecalc
+        default then panic("$(s) is not a valid mode!")
+    }
+}
+
+/*
+    --- calculate ---
+*/
+
+func basecalc() -> void {
+    println("basecalc initiated.")
+    for true {
+        string := preadln("Input your equation: ")
+        // we assume string[0..N] is a number, string[N] is an operator, and string[N+1..-1] is another number
+        idx_op := 1
+        new_string := for idx, s in string.slice_away(' ') {
+            match s {
+                .is_digit() then s
+                default {
+                    if s.is_operator() {
+                        idx_op = idx
+                    }
+                }
+            }
+        }
+        match new_string[idx_op] {
+            u8("+") {
+                res := new_string.substr(0, idx_op).to_int() + new_string.substr(idx_op+1, -1).to_int()
+                println(res)
+            }
+            u8("-") {
+                res := new_string.substr(0, idx_op).to_int() - new_string.substr(idx_op+1, -1).to_int()
+                println(res)
+            }            
+            u8("*") {
+                res := new_string.substr(0, idx_op).to_int() * new_string.substr(idx_op+1, -1).to_int()
+                println(res)
+            }
+            u8("/") {
+                res := new_string.substr(0, idx_op).to_int() / new_string.substr(idx_op+1, -1).to_int()
+                println(res)
+            }
+            u8("%") {
+                res := new_string.substr(0, idx_op).to_int() % new_string.substr(idx_op+1, -1).to_int()
+                println(res)
+            }
+            u8("^") {
+                res := math::pow(new_string.substr(0, idx_op).to_int(), new_string.substr(idx_op+1, -1).to_int())
+                println(res)
+            }
+        }
+    }
+}

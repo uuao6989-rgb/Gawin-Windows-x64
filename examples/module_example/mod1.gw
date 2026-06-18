@@ -1,0 +1,12 @@
+module myMod
+
+struct #InternalStruct {
+	data: []string
+}
+
+func mod_foo(arg: []string) -> #InternalStruct as exposed {
+	return foo: #InternalStruct := #InternalStruct {
+		data: arg
+	}
+}
+

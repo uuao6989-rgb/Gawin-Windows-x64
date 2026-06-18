@@ -1,0 +1,16 @@
+/*
+ * The basic Gawin file
+ *
+ * When compiled and executed will print 'Hello Gawin!' to stdout
+ *
+ * Program is initialized using the Gawin Runtime (GRT) and the Gawin Standard Library (gstdlib/gstd)
+ * Program is linked at compile-time with all built-in libraries (grtio, grtmem, grtstr)
+ *
+ * This compilation pipeline is deprecated
+ * Linking will include grtio (grthelpio) and grtstr (grthelpstr), but not grtmem
+ */
+
+func main() {
+	println("Hello Gawin!")
+}
+

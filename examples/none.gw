@@ -1,0 +1,25 @@
+/*
+    Talking about the main "nothing" value in Gawin -> none
+
+    none is a value that is "accessible" (assignable) ONLY via optional-types (?T)
+    optional-types give some functions (for all T, no matter if user-defined or builtin) that help for none-usages
+
+    Here only the definitions of 'unpack' and 'is_none' are shown (stdlib implementations)
+*/
+
+for opt: ?type T => {
+    func unpack() -> T, Definitely(!!str) /* syntax for "either one or the other" */ {
+        return if opt { opt } else { !!Error("The caller is none") }
+        /* none is falsey, thus if opt == none, the if-path wouldn't execute and the else-path is taken */ 
+    }
+
+    func is_none() -> bool {
+        return !(opt as bool)
+    }
+
+    func not_none() -> bool {
+        return opt as bool
+    }
+}
+
+// Definitely(!!T) means that there is no "maybe error of type T, maybe T" value but a definite error being returned

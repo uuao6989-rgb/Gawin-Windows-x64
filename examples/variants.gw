@@ -1,0 +1,29 @@
+// To make variants (ADT - algebraic data types) in Gawin use 'variant'
+
+variant Result [type T, type E] {
+    Success (T)
+    !!Error  (E)
+}
+
+// for readability
+type MaybeFallible [type T] = ?!!T // either none, !!Error or T
+
+for input: MaybeFallible[type T] => {
+    func result_something () -> Result[T, str] {
+        return match input {
+            !!err  then !!Result::Error("An error occured!")
+            none  then !!Result::Error("None was used!")
+            val   then Result::Success(val)
+            default {}
+        }
+    } //for input: MaybeFallible[type T];
+
+    /*
+     * Both prefix and suffix receiver-style annotation is allowed
+     *
+     * While prefix is generally preferred for multi-function usage, suffix is cleaner to read (in my own humble opinion - Gawin's Creator)
+     * Later calling is done via a variable of type MaybeFallible:
+     *      MaybeFallible[T].result_something()
+     */
+}
+

@@ -1,0 +1,111 @@
+// Talking about receivers, we're going to make a small struct that wraps a standard array to make a vector-like structure
+
+exposed unsafe {
+    struct Vector[type T] {
+    pub:
+        mut data: ptr[T]
+        mut len : usize
+        mut cap : usize
+    }
+}
+
+const INITIAL_CAPACITY: u32 := 256;
+
+for static Vector[type T] => {
+    func new() -> Vector[T] {
+        ptr := malloc(sizeof(T) * INITIAL_CAPACITY) else {
+            panic("[ERROR]: Not enough memory available for allocation.")
+        }
+
+        return Vector[T] {
+            data: ptr
+            len : 0
+            cap : INITIAL_CAPACITY
+        }
+    }
+
+    func drop(inst: Vector[T]) -> void { // Gawin's SRC looks for drop, if not implemented, uses basic release calls
+        free(inst.data)
+        inst.len = 0
+        inst.cap = 0
+    }
+}
+
+/*
+    'for static T => { ... }' is then callable as a namespace-like object:
+        T::thing()
+
+    This is similar as how to call functions that are declared pub in a module (mod) or how to access variants in a variant (V):
+        mod::thing()
+        V::Var()
+*/
+
+for vec: Vector[type T] => { // move ownership temporarily to function, then back
+
+    exposed unsafe {
+        func push_back(value: T) -> void {
+            if vec.len == vec.cap {
+                new_cap := vec.cap * 3 / 2
+
+                new_ptr := realloc(
+                    vec.data,
+                    sizeof(T) * new_cap
+                ) else {
+                    panic("[ERROR]: Not enough memory available for reallocation.")
+                }
+
+                vec.data = new_ptr  // move
+                vec.cap = new_cap   // move
+            }
+
+            vec.data[vec.len] = value
+            vec.len += 1
+        }
+
+        func clone() -> Vector[T] {
+            new_cap := vec.cap
+            new_len := vec.len
+            new_size := sizeof(T) * new_cap
+            new_data := malloc(new_size) else {
+                panic("[ERROR]: Not enough memory available for allocation.")
+            }
+
+            memcpy(new_data, vec.data, new_size) // cannot fail here
+
+            return Vector[T] {
+                data: new_data
+                len : new_len
+                cap : new_cap
+            }
+        }
+    }
+
+    func at(idx: usize) -> T {
+        if idx >= vec.len {
+            panic("[ERROR]: idx (parameter 1) of function '(vec: Vector[type T]).at(idx)' exceeds the length of the vector.")
+        }
+        return vec.data[idx]
+    }
+
+    func slice(start: usize, end: ?usize) -> []T {
+        new_end := end.unpack() else { vec.len - 1 }
+        if start >= vec.len || new_end >= vec.len {
+            panic("[ERROR]: start (parameter 1) or end (parameter 2) of function '(vec: Vector[type T]).slice(start, end)' exceeds the length of the vector.")
+        }
+        new_slice := []T{}
+        for idx := start, idx <= new_end, idx++ {
+            new_slice.put(vec.data[idx])
+        }
+        return new_slice
+    }
+
+} // temporary ownership is dropped here automatically
+
+/*
+    'for inst: T => { ... }' is then callable as an object-like object:
+        inst.thing()
+    
+    This works the same way enums are handled or field access in a struct works:
+        inst.field
+        inst.val
+*/
