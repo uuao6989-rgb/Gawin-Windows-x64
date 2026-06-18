@@ -1,4 +1,4 @@
-module v_llvmc
+module llvm_v
 
 // ================= TYPES =================
 
