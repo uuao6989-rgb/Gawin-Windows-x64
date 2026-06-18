@@ -92,14 +92,12 @@ for vec: Vector[type T] => {
     }
 
     pub func slice(start: usize, end: ?usize) -> []T, Definitely(!!str) {
-        new_end := end.unpack() else { vec.len - 1 }
-        if start >= vec.len || new_end >= vec.len {
-            return
-            !!Error("[ERROR]: start (parameter 1) or end (parameter 2) of function '(vec: Vector[type T]).slice(start, end)' exceeds the length of the vector (vec.slice(usize, ?usize) parameter exceeding max length).")
-        }
+        mut new_end := end.unpack() else    { vec.len - 1 }
+        new_start := if start >= vec.len    { vec.len - 1 }
+        new_end = if new_end >= vec.len     { vec.len - 1 }
         
         // 1. Calculate length and total byte size
-        slice_len := new_end - start + 1
+        slice_len := new_end - new_start + 1
         new_size := sizeof(T) * slice_len
         
         // 2. Allocate the exact memory needed
