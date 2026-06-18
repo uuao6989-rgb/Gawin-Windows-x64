@@ -115,7 +115,9 @@ pub enum TokenType {
 	type_void
 	type_str
 	type_rstr
-	type_bool
+	type_bool				// bool, b8
+	type_bool_short			// bool16, b16
+	type_bool_int			// bool32, b32
 	type_half_byte			// i8
 	type_short				// i16
 	type_int				// i32
@@ -235,6 +237,12 @@ const types = {
 	'str'	: TokenType.type_str // Normal String
 	'rstr'	: TokenType.type_rstr // Raw String
 	'bool'	: TokenType.type_bool
+	'bool8'	: TokenType.type_bool
+	'bool16': TokenType.type_bool_short
+	'bool32': TokenType.type_bool_int
+	'b8'	: TokenType.type_bool
+	'b16'	: TokenType.type_bool_short
+	'b32'	: TokenType.type_bool_int
 	'i8'	: TokenType.type_half_byte
 	'i16'	: TokenType.type_short
 	'i32'	: TokenType.type_int
