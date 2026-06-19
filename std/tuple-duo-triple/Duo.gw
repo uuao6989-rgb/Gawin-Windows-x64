@@ -50,7 +50,7 @@ for mut duo: Duo[type T1, type T2] => {
         duo.__second = s
     }
 
-    pub func swapped() -> Duo[T2, T1] {
+    pub func reverse() -> Duo[T2, T1] {
         return Duo::new(duo.__second, duo.__first)
     }
 }
