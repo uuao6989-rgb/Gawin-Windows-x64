@@ -1,0 +1,37 @@
+module std::tuple
+module tuple
+
+pub const struct Tuple[type... Types] {
+    const for idx := 0; type T in Types {
+        T { .__name: "$(idx)", .__data: 0 as T }
+        idx++
+    }
+}
+
+for static Tuple[type... Types] {
+    pub func new(args: Types...) -> Tuple[Types] {
+        return Tuple[Types] {
+            const for idx := 0; idx < sizeof(Types) /* sizeof(variadic) expands to the amount of variadic arguments */ {
+                T { .__name: ".$(idx)", .__data: args[idx] }
+            }
+        }
+    }
+
+    pub func default() -> Tuple[Types] {
+        return Tuple[Types] {
+            const for idx := 0; type T in Types {
+                T { .__name: ".$(idx)", .__data: 0 as T }
+            }
+        }
+    }
+}
+
+for static Tuple[default...] {
+    pub func new[type... Types = default...](args: Types...) -> Tuple[Types] {
+        return Tuple[Types] {
+            const for idx := 0; idx < sizeof(Types) {
+                T { .__name: ".$(idx)", .__data: args[idx] }
+            }
+        }
+    }
+}
