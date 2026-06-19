@@ -111,7 +111,7 @@ fn main() {
 	}
 
 	if os.args.len < 2 {
-		eprintln('Usage: ggc <file.gw> [files.gw] [flags]')
+		eprintln('Usage: ${os.args[0]} <file.gw> [files.gw] [flags]')
 		eprintln('\tExpected at least one file, got 0 files instead.')
 		eprintln('\tArguments received: $os.args')
 		exit(no_file_provided)
