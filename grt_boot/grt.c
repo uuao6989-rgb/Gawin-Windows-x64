@@ -5,6 +5,7 @@
  */
 
 #include "grt.h"
+#define GRT_HEAP_CONFIG
 #include "../grtdef/grtheap.h"
 
 #ifdef _WIN32

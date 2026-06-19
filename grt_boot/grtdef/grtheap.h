@@ -55,9 +55,11 @@ typedef struct grt_block_header {
 #define GRT_MIN_BLOCK_SIZE 32
 #define GRT_NUM_FREE_LISTS 64
 
-static grt_block_header *grt_heap_start = NULL;
-static grt_block_header *grt_heap_end = NULL;
-static grt_block_header *grt_seg_list = NULL;
-static grt_block_header *grt_free_lists[GRT_NUM_FREE_LISTS] = { 0 };
-static USIZE grt_free_mask = 0;
-static USIZE grt_next_segment_size = GRT_BASE_SEGMENT_SIZE;
+#ifdef GRT_HEAP_CONFIG
+    static grt_block_header *grt_heap_start = NULL;
+    static grt_block_header *grt_heap_end = NULL;
+    static grt_block_header *grt_seg_list = NULL;
+    static grt_block_header *grt_free_lists[GRT_NUM_FREE_LISTS] = { 0 };
+    static USIZE grt_free_mask = 0;
+    static USIZE grt_next_segment_size = GRT_BASE_SEGMENT_SIZE;
+#endif // GRT_HEAP_CONFIG

@@ -1,5 +1,3 @@
-#pragma once
-
 // grtmax.h
 #include "grtdef.h"
 

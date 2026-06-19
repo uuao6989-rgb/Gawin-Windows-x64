@@ -2,6 +2,7 @@
 #include "../grtdef/grtdef.h"
 #include "../grtdef/grtmax.h"
 #include "../grtdef/grtnil.h"
+#define GRT_HEAP_CONFIG
 #include "../grtdef/grtheap.h"
 
 #include "grthelpmem.h"

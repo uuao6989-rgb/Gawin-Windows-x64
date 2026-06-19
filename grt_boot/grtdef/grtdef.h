@@ -1,5 +1,3 @@
-#pragma once
-
 // grtdef.h
 
 typedef unsigned short WCHAR;

@@ -2,6 +2,7 @@
 #include "grtio.h"
 #include "grthelpio.h"
 #include "../grtdef/grtnil.h"
+#define GRT_HEAP_CONFIG
 #include "../grtdef/grtheap.h"
 
 /*
@@ -228,7 +229,7 @@ void __GRTCALL grt_append_output(const char *data, int len) {
   grt_release_lock();
 }
 
-static char *grt_uint_to_chptr(USIZE value) {
+const char *__GRTCALL grt_uint_to_chptr(USIZE value) {
   char *buf = grt_next_buf();
   char *p = buf + GRT_BUF_SIZE - 1;
   *p = '\0';
@@ -248,7 +249,7 @@ const char *__GRTCALL grt_int_to_chptr(int value) {
     u = (unsigned int)(-(value + 1)) + 1;
   }
 
-  char *p = grt_uint_to_chptr(u);
+  char *p = (char *)grt_uint_to_chptr(u);
   if (negative) {
     *--p = '-';
   }

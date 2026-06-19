@@ -2,6 +2,7 @@
 #include "grthelpstr.h"
 //#include "../grtmem/grtmem.h"
 // grtmem.h is deprecated in use here
+#define GRT_HEAP_CONFIG
 #include "../grtdef/grtheap.h"
 #include "../grtdef/grtdef.h"
 #include "../grtdef/grtnil.h"
@@ -32,7 +33,7 @@ void __GRTCALL grt_string_ensure_capacity(char **data, USIZE *capacity, USIZE re
     }
 
     USIZE next_capacity = grt_string_next_capacity(required);
-    char *new_data = (char *)grt_realloc(*data, next_capacity);
+    char *new_data = (char *)hdwr_realloc(*data, *capacity, next_capacity);
     if (!new_data) {
         return;
     }
@@ -106,7 +107,7 @@ static void grt_string_allocate(grt_String *str, USIZE capacity) {
         capacity = 1;
     }
 
-    str->data = (char *)hdwr_alloc(capacity);
+    str->data = (char *)hdwr_malloc(capacity);
     if (str->data) {
         str->capacity = capacity;
         str->length = 0;
@@ -122,7 +123,7 @@ static void grt_string_resize_internal(grt_String *str, USIZE required_length) {
     USIZE required_capacity = required_length + 1;
     if (required_capacity > str->capacity) {
         USIZE next_capacity = grt_string_next_capacity(required_capacity);
-        char *new_data = (char *)grt_realloc(str->data, next_capacity);
+        char *new_data = (char *)hdwr_realloc(str->data, str->capacity, next_capacity);
         if (!new_data) {
             return;
         }
@@ -154,7 +155,7 @@ grt_String __GRTCALL grt_string_from_cstr(const char *text) {
 
     USIZE length = grt_strlen(text);
     USIZE capacity = length + 1;
-    result.data = (char *)hdwr_alloc(capacity);
+    result.data = (char *)hdwr_malloc(capacity);
     if (!result.data) {
         return grt_string_new();
     }
@@ -183,7 +184,7 @@ void __GRTCALL grt_string_free(grt_String *str) {
         return;
     }
     if (str->data) {
-        grt_free(str->data);
+        hdwr_free(str->data, sizeof(str->data)*str->length);
     }
     str->data = NULL;
     str->length = 0;
@@ -325,7 +326,7 @@ grt_String __GRTCALL grt_string_substring(const grt_String *str, USIZE index, US
     }
 
     USIZE capacity = count + 1;
-    result.data = (char *)hdwr_alloc(capacity);
+    result.data = (char *)hdwr_malloc(capacity);
     if (!result.data) {
         return result;
     }
