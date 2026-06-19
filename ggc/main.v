@@ -45,6 +45,14 @@ VERSION:
 
 FLAGS:
     -h, --help    Show this help message
+	-v, --version Shows the current installed version
+-f...:
+	no-style, no-s, ns	Disable the Gawin Style Guide
+	emit-ir, emi, ei	Don\'t delete the temporary LLVM IR file
+
+-W...:
+	error, e			Treats warnings as errors
+	silent, s, ignore	Ignores warnings altogether
 '
 
 struct CompilerOptions {
@@ -81,7 +89,7 @@ fn helper_for_matching_flags_with_double_slash(flag string, mut opts CompilerOpt
 
 fn helper_for_matching_flags_with_w(flag string, mut opts CompilerOptions) bool {
 	match flag {
-		'error' {
+		'error', 'e' {
 			opts.warnings_as_errors = true
 		}
 		'silent', 's', 'ignore' {

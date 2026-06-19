@@ -1,7 +1,7 @@
 module ggen
 
 import gparser
-import v_llvmc
+import llvm_v
 /*
 pub fn generate(ast gparser.AST) string {
 	mut ir := '; Module\n'
