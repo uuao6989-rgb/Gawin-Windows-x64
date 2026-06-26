@@ -2,6 +2,7 @@ module std::tuple
 module tuple
 
 pub const struct Tuple[type... Types] {
+pub mut:
     const for idx := 0; type T in Types {
         T { .__name: "$(idx)", .__data: 0 as T }
         idx++
