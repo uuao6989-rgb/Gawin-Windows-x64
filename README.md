@@ -77,8 +77,6 @@ To install **Gawin**, run the correct setup script depending on your operating s
 * **Windows (PowerShell):** `.\setup.ps1`
 * **Linux / macOS (Shell):** `chmod +x ./setup.sh && ./setup.sh`
 
-> **Note:** When downloading from the [Gawin website](https://), you receive a pre-built, all-platform folder containing binaries compiled exactly for your system architecture.
-
 ### Verify Installation
 
 After running the installer, restart your terminal and verify the toolchain using the following commands:
