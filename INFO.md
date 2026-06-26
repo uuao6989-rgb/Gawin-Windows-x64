@@ -17,7 +17,7 @@ The **Gawin Compiler Project** includes all sources that were used to make the G
 * The **Parser**
 * The **Analysis**
 * The **Codegen**
-* The **ARC-Injector**
+* The **SRC-Analyser**
 * The **Style Guide Enforcer**
 * The **Visibility Checker**
 
