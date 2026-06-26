@@ -1,29 +1,30 @@
 <#
 .SYNOPSIS
-    A chill script to get your GLang and Gawin dev environment up and running without any headaches.
+    A modern development ecosystem setup script for GLang and Gawin.
 .DESCRIPTION
-    Grabs your compilers (LLVM/Clang), sets up Perl, cleans up your system PATH variables,
-    cranks through a multi-phase build pipeline, and runs quick security/health checks.
+    Automates the installation of required binaries (LLVM/Clang, Perl), 
+    manages environment PATH variables, processes a multi-stage compiler build 
+    pipeline, and runs system sanity/security diagnostics.
 .PARAMETER Scope
-    Where to save your environment settings. Pick 'user' or 'system'.
+    Where to save your environment configuration registry entries. Choose 'user' or 'system'.
 .PARAMETER Force
-    Forces a fresh download and setup of LLVM and Perl, even if they're already there.
+    Forces a fresh download and installation of LLVM and Perl, even if already present.
 .PARAMETER Doctor
-    Runs a quick health check on your path variables, versions, and dependencies.
+    Runs an operational health check on environmental paths, versions, and tool dependencies.
 .PARAMETER Repair
-    Automatically patches missing system paths and binaries for you.
+    Automatically fixes missing environment paths and binary targets.
 .PARAMETER Build
-    Skips the confirmation prompt and jumps straight into building the source files.
+    Bypasses the interactive prompt and directly triggers the compilation pipeline.
 .PARAMETER SkipBuild
-    Skips the build process entirely.
+    Explicitly skips the compilation phase.
 .PARAMETER SkipPerl
-    Skips checking or downloading Perl.
+    Skips downloading or validating the Perl interpreter environment.
 .PARAMETER SkipLLVM
-    Skips checking or downloading the LLVM/Clang toolchain.
+    Skips downloading or validating the LLVM/Clang toolchain.
 .PARAMETER AdvancedBuild
-    Forces the advanced multi-tier bootstrap compilation pipeline.
+    Forces execution of the multi-tier bootstrap compilation sequence.
 .PARAMETER SecurityAudit
-    Scans path ordering, directory write access, and execution policies for security risks.
+    Analyzes path ordering, workspace write permissions, and script execution policies.
 .EXAMPLE
     .\setup.ps1 -Scope user
 .EXAMPLE
@@ -50,7 +51,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 # =========================================================
-# Globals & Configurations
+# Globals & Target Configurations
 # =========================================================
 $DefaultLLVMPath = Join-Path $env:ProgramFiles "LLVM\bin"
 $DefaultPerlPath = "C:\Strawberry\perl\bin"
@@ -60,26 +61,26 @@ $FallbackPerlUrl = "https://strawberryperl.com/download/5.40.0.1/strawberry-perl
 
 # Status Tracking Dashboard
 $Global:ReportCard = [ordered]@{
-    "Security Scan"       = "Skipped"
-    "Health Audit"        = "Skipped"
-    "LLVM Toolchain"      = "Unchanged"
-    "Perl Environment"    = "Unchanged"
-    "System PATH"         = "Unchanged"
-    "Compiler Engine"     = "Skipped"
+    "Security Scan"    = "Skipped"
+    "Health Audit"     = "Skipped"
+    "LLVM Toolchain"   = "Unchanged"
+    "Perl Environment" = "Unchanged"
+    "System PATH"      = "Unchanged"
+    "Compiler Engine"  = "Skipped"
 }
 
-# Build Summary Data Engine
+# Build Summary Metrics Engine
 $Global:BuildStats = @{
-    HelperCount      = 0
-    BootstrapStatus  = "Skipped"
-    RuntimeCount     = 0
-    SelfHostStatus   = "Skipped (0 modules)"
-    PlatformStatus   = "Skipped (0 modules)"
-    TotalBuildTime   = 0.0
+    HelperCount     = 0
+    BootstrapStatus = "Skipped"
+    RuntimeCount    = 0
+    SelfHostStatus  = "Skipped (0 modules)"
+    PlatformStatus  = "Skipped (0 modules)"
+    TotalBuildTime  = 0.0
 }
 
 # =========================================================
-# Friendly Logging UI
+# Timestamps & Modern Logging UI
 # =========================================================
 function Write-Log {
     param(
@@ -88,24 +89,26 @@ function Write-Log {
         [string]$Message
     )
 
+    $Timestamp = Get-Date -Format "HH:mm:ss"
+
     switch ($Level) {
-        "INFO"   { Write-Host "[info]   $Message" -ForegroundColor Cyan }
-        "OK"     { Write-Host "[ ok ]   $Message" -ForegroundColor Green }
-        "WARN"   { Write-Host "[warn]   $Message" -ForegroundColor Yellow }
-        "ERROR"  { Write-Host "[oops]   $Message" -ForegroundColor Red }
-        "SECURE" { Write-Host "[safe]   $Message" -ForegroundColor Magenta }
+        "INFO"   { Write-Host "[$Timestamp] [info]    $Message" -ForegroundColor Cyan }
+        "OK"     { Write-Host "[$Timestamp] [ready]   $Message" -ForegroundColor Green }
+        "WARN"   { Write-Host "[$Timestamp] [warn]    $Message" -ForegroundColor Yellow }
+        "ERROR"  { Write-Host "[$Timestamp] [fail]    $Message" -ForegroundColor Red }
+        "SECURE" { Write-Host "[$Timestamp] [secure]  $Message" -ForegroundColor Magenta }
         "BLANK"  { Write-Host "$Message" }
     }
 }
 
 function Show-Header {
-    Write-Log BLANK "----------------------------------------------------------"
-    Write-Log BLANK "     GAWIN & GLANG HIGH-PERFORMANCE ECOSYSTEM SETUP       "
-    Write-Log BLANK "----------------------------------------------------------"
+    Write-Log BLANK "=========================================================="
+    Write-Log BLANK "      GAWIN & GLANG HIGH-PERFORMANCE WORKSPACE SETUP      "
+    Write-Log BLANK "=========================================================="
 }
 
 # =========================================================
-# Quick Admin Checks
+# Hardened Privileged Elevation (UAC Handling)
 # =========================================================
 function Test-IsAdmin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
@@ -117,30 +120,58 @@ function Invoke-MakeAdmin {
     param([string]$ScopeArg)
 
     if ($ScopeArg -eq "system" -and -not (Test-IsAdmin)) {
-        Write-Log WARN "Looks like we need admin privileges to tweak system-wide settings."
-        Write-Log WARN "Relaunching script with Admin rights..."
-        Start-Process powershell.exe -Verb RunAs -ArgumentList @(
-            "-ExecutionPolicy", "Bypass",
-            "-File", "`"$PSCommandPath`"",
-            "-Scope", "`"$ScopeArg`""
-        )
-        exit
+        Write-Log WARN "System-wide installation requires administrative privileges."
+        Write-Log INFO "Attempting to elevate script context via UAC..."
+        
+        try {
+            $Arguments = @(
+                "-NoProfile",
+                "-ExecutionPolicy", "Bypass",
+                "-File", "`"$PSCommandPath`"",
+                "-Scope", "`"$ScopeArg`""
+            )
+            
+            if ($Force)         { $Arguments += "-Force" }
+            if ($Doctor)        { $Arguments += "-Doctor" }
+            if ($Repair)        { $Arguments += "-Repair" }
+            if ($Build)         { $Arguments += "-Build" }
+            if ($SkipBuild)     { $Arguments += "-SkipBuild" }
+            if ($SkipPerl)      { $Arguments += "-SkipPerl" }
+            if ($SkipLLVM)      { $Arguments += "-SkipLLVM" }
+            if ($AdvancedBuild) { $Arguments += "-AdvancedBuild" }
+            if ($SecurityAudit) { $Arguments += "-SecurityAudit" }
+
+            $Proc = Start-Process powershell.exe -Verb RunAs -ArgumentList $Arguments -PassThru -ErrorAction Stop
+            Write-Log OK "Elevation prompt accepted. New process ID launched: $($Proc.Id)"
+            exit
+        }
+        catch {
+            Write-Log ERROR "UAC elevation failed or was declined by user: $($_.Exception.Message)"
+            Write-Log WARN "Please manually restart your PowerShell terminal as Administrator and rerun the script."
+            throw "Privilege elevation token allocation error."
+        }
     }
 }
 
 # =========================================================
-# Secure Downloader
+# Network Data Acquisition Secure Layer
 # =========================================================
 function Invoke-SafeDownload {
     param($Uri, $OutFile)
 
-    Write-Log INFO "Grabbing secure file from: $Uri"
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
-    Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing
+    Write-Log INFO "Retrieving verification asset source from: $Uri"
+    try {
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12 -bor [Net.SecurityProtocolType]::Tls13
+        Invoke-WebRequest -Uri $Uri -OutFile $OutFile -UseBasicParsing -ErrorAction Stop
+    }
+    catch {
+        Write-Log ERROR "Network connection dropped or asset source is offline: $($_.Exception.Message)"
+        throw $_
+    }
 }
 
 # =========================================================
-# Diagnostic & Introspection Suite
+# System Analysis & Diagnostic Controls
 # =========================================================
 function Get-ClangVersion {
     $cmd = Get-Command clang -ErrorAction SilentlyContinue
@@ -155,24 +186,24 @@ function Get-ClangVersion {
 function Test-Clang {
     $cmd = Get-Command clang -ErrorAction SilentlyContinue
     if ($cmd) {
-        Write-Log OK "Clang is alive and kicking here: $($cmd.Source)"
+        Write-Log OK "Clang installation detected active: $($cmd.Source)"
         return $true
     }
-    Write-Log WARN "Clang binary isn't visible in your active path paths yet."
+    Write-Log WARN "Clang executable is not indexed in your active PATH paths."
     return $false
 }
 
 function Test-Perl {
     $cmd = Get-Command perl -ErrorAction SilentlyContinue
     if ($cmd) {
-        Write-Log OK "Perl looks great here: $($cmd.Source)"
+        Write-Log OK "Perl runtime environment verified: $($cmd.Source)"
         return $true
     }
     if (Test-Path $DefaultPerlPath) {
-        Write-Log OK "Found a static Perl folder hanging out at: $DefaultPerlPath"
+        Write-Log OK "Static Perl installation folder identified at target destination: $DefaultPerlPath"
         return $true
     }
-    Write-Log WARN "Can't seem to find a Perl interpreter anywhere on this system."
+    Write-Log WARN "Perl script engine environment could not be resolved."
     return $false
 }
 
@@ -194,93 +225,93 @@ function Get-GLangVersion {
 
 function Get-LatestLLVMVersion {
     try {
-        Write-Log INFO "Checking GitHub APIs for the newest shiny LLVM release..."
-        $r = Invoke-RestMethod "https://api.github.com/repos/llvm/llvm-project/releases/latest"
-        if (-not $r.tag_name) { throw "Weird response payload structure." }
+        Write-Log INFO "Querying GitHub remote APIs for the latest LLVM stable tag..."
+        $r = Invoke-RestMethod "https://api.github.com/repos/llvm/llvm-project/releases/latest" -TimeoutSec 10
+        if (-not $r.tag_name) { throw "Invalid release metadata schema detected." }
 
         $v = $r.tag_name -replace "llvmorg-", ""
-        Write-Log OK "Found upstream LLVM release version: $v"
+        Write-Log OK "Upstream production recommended version signature: $v"
         return $v
     }
     catch {
-        Write-Log WARN "Couldn't connect to GitHub -> Falling back to safe standard version $FallbackLLVM"
+        Write-Log WARN "Could not process remote API connection -> Using secure static fallback token version: $FallbackLLVM"
         return $FallbackLLVM
     }
 }
 
 function Invoke-Doctor {
-    Write-Log INFO "=== RUNNING SYSTEM HEALTH CHECK ==="
+    Write-Log INFO "--- RUNNING SYSTEM ENVIRONMENT AUDIT ---"
     
-    Write-Log INFO "OS Name: $((Get-CimInstance Win32_OperatingSystem).Caption)"
-    Write-Log INFO "Architecture: $env:PROCESSOR_ARCHITECTURE"
-    Write-Log INFO "PowerShell Mode: $(if ([IntPtr]::Size -eq 8) { '64-bit' } else { '32-bit' })"
-    Write-Log INFO "PowerShell Engine: $($PSVersionTable.PSVersion)"
+    Write-Log INFO "OS Distribution : $((Get-CimInstance Win32_OperatingSystem).Caption)"
+    Write-Log INFO "Architecture    : $env:PROCESSOR_ARCHITECTURE"
+    Write-Log INFO "Execution Mode  : $(if ([IntPtr]::Size -eq 8) { '64-bit Target' } else { '32-bit Target' })"
+    Write-Log INFO "Engine Version  : $($PSVersionTable.PSVersion)"
 
     $clang = Get-Command clang -ErrorAction SilentlyContinue
     if (-not $clang) {
-        Write-Log ERROR "Clang compiler engine is totally missing from your machine PATH variable."
+        Write-Log ERROR "Clang compiler missing from application discovery loops."
     } else {
         $ver = Get-ClangVersion
-        Write-Log INFO "Clang Target Location: $($clang.Source)"
-        Write-Log INFO "Clang Version Signature: $ver"
+        Write-Log INFO "Compiler Origin : $($clang.Source)"
+        Write-Log INFO "Release Tag     : $ver"
         
         $latest = Get-LatestLLVMVersion
         if ($ver -and $ver -notlike "$latest*") {
-            Write-Log WARN "Version mismatch! Upstream recommends targeting version $latest"
+            Write-Log WARN "Local/Remote toolchain variation found. Recommended upstream version baseline is $latest"
         } else {
-            Write-Log OK "System LLVM version looks up to standard."
+            Write-Log OK "Ecosystem LLVM component metrics match target spec."
         }
     }
 
-    if ($env:Path -notmatch "LLVM") { Write-Log WARN "LLVM binaries are not loaded in the active environment paths." }
+    if ($env:Path -notmatch "LLVM") { Write-Log WARN "LLVM path configurations missing from running process context paths." }
 
     Write-Log BLANK
-    Write-Log INFO "=== PERL INTERPRETER STATUS ==="
+    Write-Log INFO "--- PERL SERVICE RUNTIME ENGINE ---"
     $perl = Get-Command perl -ErrorAction SilentlyContinue
     if ($perl) {
-        Write-Log INFO "Perl Binary Location: $($perl.Source)"
+        Write-Log INFO "Engine Path     : $($perl.Source)"
         $perlVer = & perl -e "print $^V" 2>$null
-        Write-Log INFO "Perl Version String: $perlVer"
-        Write-Log OK "Perl interpreter profile status looks clean."
+        Write-Log INFO "Build Signature : $perlVer"
+        Write-Log OK "Perl interpreter infrastructure responds clean."
     } elseif (Test-Path $DefaultPerlPath) {
-        Write-Log OK "Perl directory is physical at ($DefaultPerlPath) but needs to be added to PATH."
+        Write-Log OK "Perl binaries are present at ($DefaultPerlPath) but require alignment in PATH."
     } else {
-        Write-Log ERROR "No working Perl installation detected on this system setup."
+        Write-Log ERROR "No active Perl installation signature found on this hardware profile."
     }
 
     Write-Log BLANK
-    Write-Log INFO "=== GAWIN METADATA ==="
+    Write-Log INFO "--- FRAMEWORK METADATA ---"
     $glangPath = Join-Path $PSScriptRoot "bin"
     $glangVer  = Get-GLangVersion
 
-    Write-Log INFO "Gawin Target Bin Path: $glangPath"
-    Write-Log INFO "Gawin Metadata Version: $glangVer"
+    Write-Log INFO "Target Bin Path : $glangPath"
+    Write-Log INFO "Framework Build : $glangVer"
 
-    if (Test-Path $glangPath) { Write-Log OK "Gawin distribution binaries detected." } 
-    else { Write-Log WARN "Gawin build targets folder is empty." }
+    if (Test-Path $glangPath) { Write-Log OK "Gawin binary repository folder verified." } 
+    else { Write-Log WARN "Gawin workspace compilation outputs are empty." }
 
     $Global:ReportCard["Health Audit"] = "Completed Cleanly"
-    Write-Log OK "Health audit workflow complete."
+    Write-Log OK "System operational diagnostic completed safely."
     Write-Log BLANK
 }
 
 # =========================================================
-# Security Scanning & DX Defenses
+# Security Isolation Check & Verification Matrix
 # =========================================================
 function Invoke-SecurityAudit {
-    Write-Log SECURE "=== RUNNING SECURITY DEFENSE SCAN ==="
+    Write-Log SECURE "--- EXECUTING SYSTEM THREAT MODEL EVALUATION ---"
     
-    # 1. Verification of Execution Policy
+    # 1. Execution Profile Policies Check
     $policy = Get-ExecutionPolicy
-    Write-Log INFO "Current Script Execution Policy: $policy"
+    Write-Log INFO "Active Workspace Shell Script Policy: $policy"
     if ($policy -in @("Bypass", "Unrestricted")) {
-        Write-Log WARN "Execution policy is set wide open ($policy). Make sure you trust your code sources!"
+        Write-Log WARN "Permissive script processing constraints ($policy). Ensure untrusted sources are scrutinized!"
     } else {
-        Write-Log OK "Execution policy configured safely."
+        Write-Log OK "Local environment policy verification evaluated passing."
     }
 
-    # 2. Check for Shadowing / Hijacking Vulnerabilities in Paths
-    Write-Log INFO "Scanning PATH paths for hijacking risks..."
+    # 2. Path Ordering & Write Privileges Vulnerability Mitigation
+    Write-Log INFO "Scanning environmental variables for path hijacking exploits..."
     $paths = $env:Path -split ';'
     $writablePathsInsecure = @()
     foreach ($p in $paths) {
@@ -290,31 +321,31 @@ function Invoke-SecurityAudit {
         }
     }
     if ($writablePathsInsecure.Count -gt 0) {
-        Write-Log WARN "Found insecure/writable directories inside your active PATH loops: $writablePathsInsecure"
+        Write-Log WARN "Insecure/Writable directory targets referenced inside path routes: $writablePathsInsecure"
     } else {
-        Write-Log SECURE "Path isolation checks out clean. No hijacking routes spotted."
+        Write-Log SECURE "Environment variable structural ordering clean. No hijacking vector vectors discovered."
     }
 
-    # 3. Access Permission verification on Script Context Workspace
+    # 3. Target Directory Workspace Write Permissions
     try {
         $testFile = Join-Path $PSScriptRoot ".sec_verify.tmp"
         New-Item -ItemType File -Path $testFile -Force | Out-Null
         Remove-Item $testFile -Force
-        Write-Log OK "Workspace folder write check passed cleanly."
+        Write-Log OK "Local working workspace storage permissions validated successfully."
     } catch {
-        Write-Log ERROR "Workspace access restricted! Try running inside an administrator console."
+        Write-Log ERROR "Workspace access locked or access tracking error! Try elevation via system administrator console."
     }
 
     $Global:ReportCard["Security Scan"] = "Verified Passing"
-    Write-Log SECURE "Security checks completed."
+    Write-Log SECURE "Threat detection scan finalized."
     Write-Log BLANK
 }
 
 # =========================================================
-# Automated System Patch Routine
+# Environment Reconstruction Engine (Fix Routine)
 # =========================================================
 function Invoke-AutoRepair {
-    Write-Log INFO "Starting the automated fix routine..."
+    Write-Log INFO "Initializing configuration restoration workspace..."
     
     if (-not $SkipLLVM) {
         $clangInstalled = Test-Clang
@@ -333,56 +364,62 @@ function Invoke-AutoRepair {
     if ((-not $SkipPerl) -and (Test-Path $perlBin)) { Add-ToPathSafe $perlBin $scopeEnv }
     if (Test-Path $GLangBin) { Add-ToPathSafe $GLangBin $scopeEnv }
     
-    Write-Log OK "Auto-repair routines wrapped up smoothly!"
+    Write-Log OK "Auto-repair environment restoration successfully concluded."
 }
 
 # =========================================================
-# Post-Audit Interactive Decision Loop
+# Post-Diagnostic Interactive Options & Integrity Sweep
 # =========================================================
 function Invoke-PostAuditPrompt {
     Write-Host ""
-    Write-Host "Diagnostic evaluation finished! What would you like to do next?" -ForegroundColor Cyan
-    Write-Host "1) Automatically fix any configuration/path issues found right now"
-    Write-Host "2) Build the fresh stack & execute an integrity sweep for sneaky/malicious code additions"
-    Write-Host "3) Nothing, I'm good"
+    Write-Host "Diagnostic processing completed. Select downstream deployment strategy:" -ForegroundColor Cyan
+    Write-Host "1) Automatically resolve environmental issues and align missing paths right now"
+    Write-Host "2) Run code validation loop & compile tools to audit for third-party or malicious injection"
+    Write-Host "3) Maintain current architecture and skip adjustments"
     Write-Host ""
     
-    $ans = Read-Host "Pick an option [1-3]"
+    $ans = Read-Host "Specify operational index choice [1-3]"
     switch ($ans.Trim()) {
         "1" {
             Invoke-AutoRepair
         }
         "2" {
-            Write-Log INFO "Triggering compilation stack loop for integrity scanning..."
+            Write-Log INFO "Initiating defensive toolchain verification compilation..."
             Invoke-AdvancedCompilationPipeline
             
-            # Simple, effective defensive integrity trace check
-            Write-Log SECURE "Scanning built ecosystem binaries for unauthorized modifications..."
+            Write-Log SECURE "Analyzing output compilation signatures for unauthorized changes..."
             $suspicious = $false
             $builtExes = Get-ChildItem $GLangBin -Filter "*.exe" -ErrorAction SilentlyContinue
+            
             foreach ($exe in $builtExes) {
-                # Ensure files aren't zero bytes or containing anomalous small sizes indicating corruption/hijacking
+                # Safeguard check: Malicious file stubs or code injection corruptions often alter standard byte dimensions unexpectedly
                 if ($exe.Length -lt 1024) {
-                    Write-Log WARN "Suspiciously small binary file signature discovered: $($exe.Name)"
+                    Write-Log WARN "Anomalous structural footprint detected on compiled target artifact: $($exe.Name)"
                     $suspicious = $true
                 }
             }
             
             if (-not $suspicious) {
-                Write-Log OK "Success! No malicious alterations or suspicious files found in the toolchain loop."
+                Write-Log OK "Ecosystem toolchain integrity confirmed. No malicious tampering signatures found."
             } else {
-                Write-Log ERROR "Ecosystem check caught some flags. Let's run safe auto-repair patches to be absolutely secure."
-                Invoke-AutoRepair
+                Write-Log ERROR "Integrity mismatch detected! Toolchain environment components show non-standard anomalies."
+                Write-Host ""
+                $fixChoice = Read-Host "Would you like to run the clean automatic repair patch cycle now to secure the toolchain? (y/n)"
+                if ($fixChoice.Trim().ToLower() -in @("y", "yes")) {
+                    Invoke-AutoRepair
+                } else {
+                    Write-Log WARN "Workspace repair aborted. Be careful executing active binaries in this current state."
+                }
             }
         }
         default {
-            Write-Log INFO "Moving right along."
+            Write-Log INFO "Continuing deployment operations."
         }
     }
 }
 
 # =========================================================
-# PATH Configuration Suite
+# Environment PATH Storage Control Suite
 # =========================================================
 function Get-PathList($scope) {
     $p = [Environment]::GetEnvironmentVariable("Path", $scope)
@@ -393,7 +430,7 @@ function Get-PathList($scope) {
 function Set-PathList($list, $scope) {
     $newPath = ($list | Select-Object -Unique) -join ';'
     
-    # Keep an environment safety backup key before modifying anything
+    # Create persistent system registry snapshot for crash recovery prior to structural modifications
     $backupKeyName = "Path_Gawin_Backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
     [Environment]::SetEnvironmentVariable($backupKeyName, [Environment]::GetEnvironmentVariable("Path", $scope), $scope)
     
@@ -407,12 +444,12 @@ function Add-ToPathSafe {
     )
 
     if (-not (Test-Path $PathToAdd)) {
-        throw "Whoops, can't add this folder to PATH because it doesn't exist: $PathToAdd"
+        throw "Target destination directory mapping does not exist: $PathToAdd"
     }
 
     $list = Get-PathList $Scope
     if ($list -contains $PathToAdd) {
-        Write-Log INFO "Path already has this covered: $PathToAdd"
+        Write-Log INFO "Target environment key path mapping already indexed: $PathToAdd"
         Set-PathList $list $Scope
         return
     }
@@ -421,27 +458,28 @@ function Add-ToPathSafe {
     Set-PathList $list $Scope
     $env:Path = ($env:Path + ";" + $PathToAdd)
 
-    Write-Log OK "Successfully updated PATH environment variables with: $PathToAdd"
+    Write-Log OK "Environment variable scope successfully registered: $PathToAdd"
     $Global:ReportCard["System PATH"] = "Updated Cleanly"
 }
 
 # =========================================================
-# Dependency Deployment Managers
+# Core Automated Installer Controllers
 # =========================================================
 function Install-LLVM {
     $version = Get-LatestLLVMVersion
     $winget  = Get-Command winget -ErrorAction SilentlyContinue
 
     if ($winget) {
-        Write-Log INFO "Trying a silent LLVM install via native winget clients..."
-        winget install LLVM.LLVM --silent --accept-source-agreements --accept-package-agreements
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log OK "LLVM setup completed natively via winget."
-            $Global:ReportCard["LLVM Toolchain"] = "Deployed (Winget)"
-            return
-        }
-        Write-Log WARN "Winget ran into an error; switching to manual standalone installer download workflow..."
+        Write-Log INFO "Attempting silent package deployment via native winget clients..."
+        try {
+            & winget install LLVM.LLVM --silent --accept-source-agreements --accept-package-agreements --timeout 300
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log OK "LLVM toolchain integration established through winget client."
+                $Global:ReportCard["LLVM Toolchain"] = "Deployed (Winget)"
+                return
+            }
+        } catch {}
+        Write-Log WARN "Winget pipeline failed or timed out. Transitioning to manual remote file download..."
     }
 
     $file = "LLVM-$version-win64.exe"
@@ -449,15 +487,15 @@ function Install-LLVM {
     $tmp  = Join-Path $env:TEMP $file
 
     Invoke-SafeDownload $url $tmp
-    Write-Log INFO "Running independent standalone installer package..."
+    Write-Log INFO "Executing independent standalone installer engine package background loop..."
     $p = Start-Process $tmp -ArgumentList "/S" -Wait -PassThru
 
     if ($p.ExitCode -ne 0) {
-        throw "Installation failed! Installer component returned error token: $($p.ExitCode)"
+        throw "Target subsystem deployment error. Package installer engine returned exception status code: $($p.ExitCode)"
     }
 
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-    Write-Log OK "LLVM toolchain runtime installation completed successfully."
+    Write-Log OK "LLVM compiler backend storage allocation completed successfully."
     $Global:ReportCard["LLVM Toolchain"] = "Deployed (Standalone Installer)"
 }
 
@@ -465,35 +503,36 @@ function Install-Perl {
     $winget = Get-Command winget -ErrorAction SilentlyContinue
 
     if ($winget) {
-        Write-Log INFO "Trying a quick silent Strawberry Perl install via winget..."
-        winget install StrawberryPerl.StrawberryPerl --silent --accept-source-agreements --accept-package-agreements
-
-        if ($LASTEXITCODE -eq 0) {
-            Write-Log OK "Strawberry Perl environment successfully deployed."
-            $Global:ReportCard["Perl Environment"] = "Deployed (Winget)"
-            return
-        }
-        Write-Log WARN "Winget hit a snag; processing custom standalone installation sequence..."
+        Write-Log INFO "Attempting silent script engine setup via active winget client..."
+        try {
+            & winget install StrawberryPerl.StrawberryPerl --silent --accept-source-agreements --accept-package-agreements --timeout 300
+            if ($LASTEXITCODE -eq 0) {
+                Write-Log OK "Strawberry Perl environment established via winget."
+                $Global:ReportCard["Perl Environment"] = "Deployed (Winget)"
+                return
+            }
+        } catch {}
+        Write-Log WARN "Winget connection error. Processing standalone fallback installer runtime sequence..."
     }
 
     $file = "strawberry-perl-installer.msi"
     $tmp  = Join-Path $env:TEMP $file
 
     Invoke-SafeDownload $FallbackPerlUrl $tmp
-    Write-Log INFO "Running a silent unattended MSI background install..."
+    Write-Log INFO "Executing quiet unattended deployment transaction via Windows Installer Service..."
     $p = Start-Process msiexec.exe -ArgumentList "/i `"$tmp`" /qn /norestart" -Wait -PassThru
 
     if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) {
-        throw "MSI install hit an unexpected glitch. Exit error code: $($p.ExitCode)"
+        throw "MSI package execution framework encountered an unhandled exception state: $($p.ExitCode)"
     }
 
     Remove-Item $tmp -Force -ErrorAction SilentlyContinue
-    Write-Log OK "Perl Interpreter core setup completed successfully."
+    Write-Log OK "Perl interpreter architecture configurations finalized."
     $Global:ReportCard["Perl Environment"] = "Deployed (MSI Handshake)"
 }
 
 # =========================================================
-# Multi-Tier Advanced Compilation Pipeline
+# High-Precision Multi-Tier Compiler Build Pipeline
 # =========================================================
 function Invoke-AdvancedCompilationPipeline {
     Write-Log BLANK
@@ -505,21 +544,20 @@ function Invoke-AdvancedCompilationPipeline {
     $binDir = Join-Path $root "bin"
     $totalTimer = [System.Diagnostics.Stopwatch]::StartNew()
 
-    # Make sure we have a C++ compiler active
     $clangxx = Get-Command clang++ -ErrorAction SilentlyContinue
     if (-not $clangxx) {
-        Write-Log ERROR "Clang++ compiler engine initialization error. Unable to process compilation jobs."
+        Write-Log ERROR "Clang++ optimization engine initialization error. Compilation pipeline cannot continue."
         $Global:ReportCard["Compiler Engine"] = "Failed (Missing Clang++)"
         return
     }
 
     if (-not (Test-Path $binDir)) {
-        Write-Log INFO "Creating missing core target distribution binary container folder..."
+        Write-Log INFO "Constructing missing application production distribution binary path: $binDir"
         New-Item -ItemType Directory -Path $binDir -Force | Out-Null
     }
 
-    # --- PHASE 1: Compile root/src_exec/*.cpp into root/bin/* ---
-    Write-Log INFO "Starting Phase 1 build checks..."
+    # --- PHASE 1: Build target executables root/src_exec/*.cpp into root/bin/* ---
+    Write-Log INFO "Processing Phase 1 structural component generation checks..."
     $phaseTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $srcExecDir = Join-Path $root "src_exec"
     
@@ -532,19 +570,19 @@ function Invoke-AdvancedCompilationPipeline {
                 $Global:BuildStats.HelperCount++
                 $Global:BuildStats.RuntimeCount++
             } else {
-                Write-Log ERROR "Compilation crash processing file components: $($file.Name)"
-                throw "Phase 1 compiler crash execution fault."
+                Write-Log ERROR "Phase 1 compiler crash execution fault on file mapping: $($file.Name)"
+                throw "Phase 1 compilation pipeline break exception."
             }
         }
         $phaseTimer.Stop()
         Write-Host "PHASE 1  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
-        Write-Log WARN "Source execution tracking path missing: $srcExecDir. Skipping initialization..."
+        Write-Log WARN "Source execution components folder path not tracked: $srcExecDir. Skipping step..."
     }
 
-    # --- PHASE 2: Compile root/bootstrap_cpp_gawin/*.cpp into root/bin/ggc ---
-    Write-Log INFO "Starting Phase 2 build checks..."
+    # --- PHASE 2: Build bootstrap compiler root/bootstrap_cpp_gawin/*.cpp into root/bin/ggc ---
+    Write-Log INFO "Processing Phase 2 architecture bootstrap compiler generation checks..."
     $phaseTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $bootstrapDir = Join-Path $root "bootstrap_cpp_gawin"
     $ggcPath = Join-Path $binDir "ggc.exe"
@@ -557,18 +595,18 @@ function Invoke-AdvancedCompilationPipeline {
                 $Global:BuildStats.BootstrapStatus = "Success"
                 $Global:BuildStats.RuntimeCount++
             } else {
-                throw "Bootstrap compilation failure. Exiting loop step."
+                throw "Bootstrap translation layer compilation fault. Compilation path terminated."
             }
         }
         $phaseTimer.Stop()
         Write-Host "PHASE 2  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
-        Write-Log WARN "Bootstrap repository pointer missing: $bootstrapDir. Skipping phase step."
+        Write-Log WARN "Bootstrap repository reference path missing: $bootstrapDir. Skipping step..."
     }
 
-    # --- PHASE 3: Invoke compiled binary gstdo ---
-    Write-Log INFO "Starting Phase 3 script run verification steps..."
+    # --- PHASE 3: Run pipeline management tool gstdo ---
+    Write-Log INFO "Processing Phase 3 core automation workspace checks..."
     $phaseTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $gstdoPath = Join-Path $binDir "gstdo.exe"
     
@@ -577,7 +615,7 @@ function Invoke-AdvancedCompilationPipeline {
         try {
             & .\gstdo.exe
         } catch {
-            Write-Log WARN "Failed executing built environment automation utility runtime tracking options."
+            Write-Log WARN "Automation workflow target execution runtime warning tracked during parsing loop."
         } finally {
             Pop-Location
         }
@@ -585,11 +623,11 @@ function Invoke-AdvancedCompilationPipeline {
         Write-Host "PHASE 3  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
-        Write-Log WARN "Automation workflow target binary $gstdoPath could not be loaded."
+        Write-Log WARN "Automation ecosystem management engine binary ($gstdoPath) not found."
     }
 
-    # --- PHASE 4: Invoke ggc on root/ggc/*.gw to compile into a new root/bin/ggc ---
-    Write-Log INFO "Starting Phase 4 compilation loop steps..."
+    # --- PHASE 4: Self-host rebuild; run ggc on root/ggc/*.gw into root/bin/ggc ---
+    Write-Log INFO "Processing Phase 4 framework self-hosting runtime compilation checks..."
     $phaseTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $ggcSrcDir = Join-Path $root "ggc"
     
@@ -601,7 +639,7 @@ function Invoke-AdvancedCompilationPipeline {
                 $Global:BuildStats.SelfHostStatus = "Success ($($gwCompilerFiles.Count) modules)"
                 $Global:BuildStats.RuntimeCount += $gwCompilerFiles.Count
             } else {
-                Write-Log ERROR "Self-hosting compilation cycle pipeline threw execution errors."
+                Write-Log ERROR "Self-hosted build iteration logic loop returned execution system compilation warnings."
                 $Global:BuildStats.SelfHostStatus = "Failed"
             }
         }
@@ -609,11 +647,11 @@ function Invoke-AdvancedCompilationPipeline {
         Write-Host "PHASE 4  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
-        Write-Log WARN "Self-hosted source parameters missing or compiler executable not found."
+        Write-Log WARN "Self-hosted module source elements missing or previous compiler stages failed."
     }
 
-    # --- PHASE 5: Invoke new ggc on root/gwin/*.gw to compile into root/bin/gwin ---
-    Write-Log INFO "Starting Phase 5 window platform package steps..."
+    # --- PHASE 5: Build platform modules; run new ggc on root/gwin/*.gw into root/bin/gwin ---
+    Write-Log INFO "Processing Phase 5 platform interface runtime system parsing loops..."
     $phaseTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $gwinSrcDir = Join-Path $root "gwin"
     $gwinPath = Join-Path $binDir "gwin.exe"
@@ -626,7 +664,7 @@ function Invoke-AdvancedCompilationPipeline {
                 $Global:BuildStats.PlatformStatus = "Success ($($gwinFiles.Count) modules)"
                 $Global:BuildStats.RuntimeCount += $gwinFiles.Count
             } else {
-                Write-Log ERROR "Window runtime application layer integration pipeline execution failed."
+                Write-Log ERROR "Window integration package application abstraction layer compilation execution warning tracking caught."
                 $Global:BuildStats.PlatformStatus = "Failed"
             }
         }
@@ -634,13 +672,13 @@ function Invoke-AdvancedCompilationPipeline {
         Write-Host "PHASE 5  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
-        Write-Log WARN "Compilation dependencies missing or paths omitted. Phase 5 generation skipped."
+        Write-Log WARN "Window subsystem interface targets omitted or platform references unavailable."
     }
 
     $totalTimer.Stop()
     $Global:BuildStats.TotalBuildTime = $totalTimer.Elapsed.TotalSeconds
     $Global:ReportCard["Compiler Engine"] = "Fully Functional"
-    Write-Log OK "All pipeline build routines completed successfully."
+    Write-Log OK "Ecosystem pipeline processing compilation blocks finalized successfully."
     Write-Log BLANK
 }
 
@@ -650,19 +688,19 @@ function Invoke-AdvancedCompilationPipeline {
 try {
     Show-Header
 
-    # 1. Interactive Fallback Prompt Loop Setup
+    # 1. Interactive Fallback Configuration Selection
     if (-not $Scope -and -not $Doctor -and -not $SecurityAudit -and -not $AdvancedBuild) {
-        Write-Host "What are we doing today? Select an entry below:" -ForegroundColor Green
-        Write-Host "1) Complete Standard Ecosystem Installation"
+        Write-Host "Select targeted option configuration route to execute:" -ForegroundColor Green
+        Write-Host "1) Complete Standard Environment Infrastructure Setup"
         Write-Host "2) Advanced Compilation Bootstrapping Loop Only"
-        Write-Host "3) System Environment Health Diagnostic Check (Doctor)"
-        Write-Host "4) System Deep Security & Code Integrity Audit"
+        Write-Host "3) Workspace Operational Audit Check (Doctor)"
+        Write-Host "4) System Structural Isolation & Integrity Evaluation Scan"
         Write-Host ""
         
-        $choice = Read-Host "Enter targeted option index [1-4]"
+        $choice = Read-Host "Specify option matrix index [1-4]"
         switch ($choice.Trim()) {
             "1" { 
-                # Falls through to global system scope assignment prompt block below
+                # Continues to profile scope configuration menu block down below
             }
             "2" {
                 $AdvancedBuild = $true
@@ -676,26 +714,26 @@ try {
                 $SecurityAudit = $true
             }
             default {
-                Write-Log WARN "Invalid option selection! Spinning up complete setup execution rules instead..."
+                Write-Log WARN "Invalid structural parameter choice. Triggering clean environment setup pipeline instead..."
             }
         }
     }
 
-    # Profile Target Allocations
+    # Profile Target Variable Scope Allocations Menu
     while (-not $Scope -and -not $Doctor -and -not $SecurityAudit) {
         Write-Host ""
-        $inputScope = Read-Host "Where should we target settings? Type [user/system]"
+        $inputScope = Read-Host "Specify target scope for environment variables configuration registry path [user/system]"
         if ($inputScope.Trim().ToLower() -in @("user", "system")) {
             $Scope = $inputScope.Trim().ToLower()
         } else {
-            Write-Log WARN "Input check failed. Target parameters must read 'user' or 'system' exactly."
+            Write-Log WARN "Validation tracking error. Registry scope targeting parameter must read 'user' or 'system' exactly."
         }
     }
 
     $scopeEnv = if ($Scope -eq "system") { "Machine" } else { "User" }
     if ($Scope) { Invoke-MakeAdmin $Scope }
 
-    # Core Execution Routing switches
+    # Router Action Switch Pipelines
     if ($SecurityAudit) {
         Invoke-SecurityAudit
         Invoke-PostAuditPrompt
@@ -707,36 +745,36 @@ try {
     }
 
     if (-not $Doctor -and -not $SecurityAudit) {
-        Write-Log INFO "Setting up your environment variables (Registry Target: $scopeEnv)..."
+        Write-Log INFO "Configuring system configuration keys (Registry Hive: $scopeEnv)..."
         Write-Log BLANK
 
         if ($Repair) {
-            Write-Log WARN "System path repair flags identified... patching missing ecosystem configurations..."
+            Write-Log WARN "Automated system correction parameter identified... checking environment variables path..."
             Invoke-AutoRepair
         }
 
-        # Process LLVM Installation Steps
+        # Process LLVM Setup Steps
         if (-not $SkipLLVM) {
             $clangInstalled = Test-Clang
             if (-not $clangInstalled -or $Force) { Install-LLVM }
         }
 
-        # Process Perl Installation Steps
+        # Process Perl Setup Steps
         if (-not $SkipPerl) {
             $perlInstalled = Test-Perl
             if (-not $perlInstalled -or $Force) { Install-Perl }
         }
 
-        # Set up system paths safely 
+        # Safe Environment Path Synchronization Loops
         $llvmBin = if (Get-Command clang -ErrorAction SilentlyContinue) { Split-Path (Get-Command clang).Source -Parent } else { $DefaultLLVMPath }
         $perlBin = if (Get-Command perl -ErrorAction SilentlyContinue) { Split-Path (Get-Command perl).Source -Parent } else { $DefaultPerlPath }
 
-        Write-Log INFO "Evaluating system environment registry paths..."
+        Write-Log INFO "Synchronizing local process variables with environment storage blocks..."
         if ((-not $SkipLLVM) -and (Test-Path $llvmBin)) { Add-ToPathSafe $llvmBin $scopeEnv }
         if ((-not $SkipPerl) -and (Test-Path $perlBin)) { Add-ToPathSafe $perlBin $scopeEnv }
         if (Test-Path $GLangBin) { Add-ToPathSafe $GLangBin $scopeEnv }
 
-        # Interactive Build Compilation Prompts
+        # Interactive Build Compilation Processing Controls
         $shouldBuild = $false
         if ($Build -or $AdvancedBuild) {
             $shouldBuild = $true
@@ -744,7 +782,7 @@ try {
             $shouldBuild = $false
         } else {
             Write-Host ""
-            $inputBuild = Read-Host "Do you want to run the compiler toolchain build and verification pipeline now? (y/n)"
+            $inputBuild = Read-Host "Would you like to process the workspace compilation toolchain build pipeline now? (y/n)"
             if ($inputBuild.Trim().ToLower() -in @("y", "yes", "1")) {
                 $shouldBuild = $true
             }
@@ -753,16 +791,16 @@ try {
         if ($shouldBuild) {
             Invoke-AdvancedCompilationPipeline
         } else {
-            Write-Log INFO "Skipping compilation stages per instruction choices."
+            Write-Log INFO "Skipping compilation phases per request options choice."
         }
     }
 
     # =========================================================
-    # SYSTEM VISUAL DASHBOARD REPORT CARD
+    # VISUAL COMPONENT REPORT DASHBOARD SUMMARY
     # =========================================================
     Write-Log BLANK
     Write-Log BLANK "=========================================================="
-    Write-Log OK    "          WORKSPACE ECOSYSTEM EXECUTION DASHBOARD         "
+    Write-Log OK    "            WORKSPACE OPERATIONAL EXECUTION METRICS       "
     Write-Log BLANK "=========================================================="
     foreach ($item in $Global:ReportCard.Keys) {
         $status = $Global:ReportCard[$item]
@@ -777,7 +815,7 @@ try {
         Write-Host $status -ForegroundColor $color
     }
     
-    # --- Live High Introspection Compilation Diagnostic Blocks ---
+    # --- Live Compilation Performance Matrix ---
     if ($Global:ReportCard["Compiler Engine"] -eq "Fully Functional") {
         Write-Log BLANK
         Write-Host "==========================================================" -ForegroundColor Gray
@@ -792,11 +830,11 @@ try {
         Write-Host "Total build time   : $($Global:BuildStats.TotalBuildTime.ToString("F2"))s" -ForegroundColor Cyan
     }
     Write-Log BLANK "=========================================================="
-    Write-Log OK "Ecosystem operation setup tasks wrapped up cleanly!"
+    Write-Log OK "Workspace configuration and dependency setup tasks finalized smoothly!"
 }
 catch {
-    Write-Log ERROR "Fatal Script Exception Intercepted: $($_.Exception.Message)"
-    Write-Log BLANK "Stack trace diagnostics: $($_.ScriptStackTrace)"
+    Write-Log ERROR "Fatal Environment Exception Caught: $($_.Exception.Message)"
+    Write-Log BLANK "Trace diagnostic stack tracking matrix location: $($_.ScriptStackTrace)"
     exit 1
 }
 
