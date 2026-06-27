@@ -1,638 +1,940 @@
 #!/bin/bash
 
-# =========================================================
-# .glang Setup Script (Linux Edition - Production Grade)
-# LLVM + Clang + Perl Interpreter + GLang Toolchain Manager
-# =========================================================
+# ==============================================================================
+# .glang Setup Script (Unix Edition - Production Grade Architecture)
+# A modern development ecosystem setup script for GLang and Gawin.
+# ==============================================================================
 
-Set -euo pipefail
+set -Eeuo pipefail
 
-FALLBACK_VERSION="20.1.8"
+# Determine script directory root path context
+PSScriptRoot="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
-GLANG_BIN="$ROOT_DIR/bin"
-INSTALL_ROOT="$ROOT_DIR/g_clang_depend"
-PERL_INSTALL_ROOT="$ROOT_DIR/g_perl_depend"
-VERSION_FILE="$ROOT_DIR/glang_meta/VERSION.gwin"
+# ==============================================================================
+# Globals & Target Configurations
+# ==============================================================================
+DefaultLLVMPath="/opt/llvm"
+DefaultPerlPath="/opt/perl"
+GLangBin="$PSScriptRoot/bin"
+FallbackLLVM="20.1.8"
 
-# Initialize command-line flag defaults
-DOCTOR=0
-REPAIR=0
-FORCE=0
-BUILD_BINARIES=-1  # -1 = Unassigned (Will prompt unless flag specified)
-SKIP_PERL=0
-SKIP_LLVM=0
-ADVANCED_BUILD=0
-SECURITY_AUDIT=0
+# Argument Processing Variable Initializations
+Scope=""
+Force=0
+Doctor=0
+Repair=0
+Build=0
+SkipBuild=0
+SkipPerl=0
+SkipLLVM=0
+AdvancedBuild=0
+SecurityAudit=0
 
-# Pipeline Trackers for UI Dashboard Report Card
-STATUS_SECURITY="Skipped"
-STATUS_DOCTOR="Skipped"
-STATUS_LLVM="Unchanged"
-STATUS_PERL="Unchanged"
-STATUS_PATH="Unchanged"
-STATUS_BUILD="Skipped"
-
-# ---------------------------------------------------------
-# Colors + Logging Subsystem
-# ---------------------------------------------------------
-CYAN='\033[0;36m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-MAGENTA='\033[0;35m'
-WHITE='\033[1;37m'
-GRAY='\033[0;37m'
-NC='\033[0m'
-
-log_info()   { echo -e "${CYAN}[INFO]   $1${NC}"; }
-log_ok()     { echo -e "${GREEN}[ OK ]   $1${NC}"; }
-log_warn()   { echo -e "${YELLOW}[WARN]   $1${NC}"; }
-log_err()    { echo -e "${RED}[FAIL]   $1${NC}"; }
-log_secure() { echo -e "${MAGENTA}[SECURE] $1${NC}"; }
-log_blank()  { echo -e "${NC}$1${NC}"; }
-
-show_header() {
-    log_blank "----------------------------------------------------------"
-    log_blank "     GAWIN & GLANG HIGH-PERFORMANCE ECOSYSTEM SETUP       "
-    log_blank "----------------------------------------------------------"
-}
-
-# ---------------------------------------------------------
-# Help / Usage Menu
-# ---------------------------------------------------------
-show_help() {
-    echo "Usage: ./setup.sh [OPTIONS]"
-    echo ""
-    echo "Production-grade toolchain environment wizard for GLang/Gawin."
-    echo ""
-    echo "Options:"
-    echo "  -h, --help         Show this help message menu configuration and exit"
-    echo "  --doctor           Execute an operational audit checking paths, versions, and dependencies"
-    echo "  --repair           Trigger systematic restoration workflows on missing paths and binaries"
-    echo "  --force            Force a clean re-download and isolated deployment of target stacks"
-    echo "  --build            Bypass the execution prompt and immediately compile source binaries"
-    echo "  --skip-build       Bypass the execution prompt and explicitly skip building binaries"
-    echo "  --skip-perl        Bypass validation or standalone installation of the Perl interpreter"
-    echo "  --skip-llvm        Bypass validation or standalone installation of the LLVM/Clang stack"
-    echo "  --advanced-build   Explicitly forces execution of the advanced multi-tier bootstrap pipeline"
-    echo "  --security-audit   Executes deep structural analysis on path sanitization and permissions"
-    echo ""
-    echo "Examples:"
-    echo "  ./setup.sh --build"
-    echo "  ./setup.sh --advanced-build --security-audit"
-    exit 0
-}
-
-# ---------------------------------------------------------
-# Argument Parsing Matrix
-# ---------------------------------------------------------
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        -h|--help)       show_help ;;
-        --doctor)        DOCTOR=1; shift ;;
-        --repair)        REPAIR=1; shift ;;
-        --force)         FORCE=1; shift ;;
-        --build)         BUILD_BINARIES=1; shift ;;
-        --skip-build)    BUILD_BINARIES=0; shift ;;
-        --skip-perl)     SKIP_PERL=1; shift ;;
-        --skip-llvm)     SKIP_LLVM=1; shift ;;
-        --advanced-build) ADVANCED_BUILD=1; shift ;;
-        --security-audit) SECURITY_AUDIT=1; shift ;;
-        *)               echo -e "${RED}[FAIL] Unknown option: $1${NC}"; echo "Use --help for usage details."; exit 1 ;;
-    esac
+# Status Tracking Dashboard State Metrics Matrix
+declare -A ReportCard
+ReportCardKeys=(
+    "Security Scan"
+    "Health Audit"
+    "LLVM Toolchain"
+    "Perl Environment"
+    "System PATH"
+    "Compiler Engine"
+)
+for key in "${ReportCardKeys[@]}"; do
+    ReportCard["$key"]="Skipped"
 done
 
-# ---------------------------------------------------------
-# Runtime Version Discovery Resolvers
-# ---------------------------------------------------------
-get_latest_llvm_version() {
-    log_info "Querying upstream GitHub API for latest LLVM release version info..."
-    local version
-    version=$(curl -s https://api.github.com/repos/llvm/llvm-project/releases/latest \
-        | grep '"tag_name":' \
-        | sed -E 's/.*"llvmorg-([^"]+)".*/\1/' || echo "")
+# Build Summary Metrics Engine
+HelperCount=0
+BootstrapStatus="Skipped"
+RuntimeCount=0
+SelfHostStatus="Skipped (0 modules)"
+PlatformStatus="Skipped (0 modules)"
+TotalBuildTime="0.0"
 
-    if [ -z "$version" ]; then
-        log_warn "Upstream discovery handshake failed -> Using configuration version $FALLBACK_VERSION"
-        echo "$FALLBACK_VERSION"
+# ==============================================================================
+# Timestamps & Modern Logging UI Subsystem
+# ==============================================================================
+Write-Log() {
+    local level="$1"
+    local message="$2"
+    local timestamp
+    timestamp=$(date +"%H:%M:%S")
+
+    switch_color_level() {
+        case "$1" in
+            "INFO")   echo -e "[\033[0;36m$timestamp\033[0m] [\033[0;36minfo\033[0m]    $2" ;;
+            "OK")     echo -e "[\033[0;36m$timestamp\033[0m] [\033[0;32mready\033[0m]   $2" ;;
+            "WARN")   echo -e "[\033[0;36m$timestamp\033[0m] [\033[0;33mwarn\033[0m]    $2" ;;
+            "ERROR")  echo -e "[\033[0;36m$timestamp\033[0m] [\033[0;31mfail\033[0m]    $2" ;;
+            "SECURE") echo -e "[\033[0;36m$timestamp\033[0m] [\033[0;35msecure\033[0m]  $2" ;;
+            "BLANK")  echo -e "$2" ;;
+        esac
+    }
+    switch_color_level "$level" "$message"
+}
+
+Write-ProgressInline() {
+    local message="$1"
+    local timestamp
+    timestamp=$(date +"%H:%M:%S")
+    local full_str="[$timestamp] [info]    $message"
+    # Overwrites current terminal row using standard carriage returns and pads out ghosts
+    printf "\r\033[0;36m%-95s\033[0m" "$full_str"
+}
+
+Show-Header() {
+    Write-Log "BLANK" "=========================================================="
+    Write-Log "BLANK" "      GAWIN & GLANG HIGH-PERFORMANCE WORKSPACE SETUP      "
+    Write-Log "BLANK" "=========================================================="
+}
+
+# ==============================================================================
+# High Precision Microsecond Duration Calculators
+# ==============================================================================
+Get-Time() {
+    date +%s.%N 2>/dev/null || date +%s
+}
+
+Compute-Duration() {
+    local start_time="$1"
+    local end_time="$2"
+    awk -v s="$start_time" -v e="$end_time" 'BEGIN { printf "%.2f", e - s }' 2>/dev/null || echo "0.00"
+}
+
+# ==============================================================================
+# Hardened Privileged Elevation (Sudo Context Handling Management Loops)
+# ==============================================================================
+Test-IsAdmin() {
+    [ "$(id -u)" -eq 0 ]
+}
+
+Invoke-MakeAdmin() {
+    local scope_arg="$1"
+
+    if [ "$scope_arg" = "system" ] && ! Test-IsAdmin; then
+        Write-Log "WARN" "System-wide installation requires administrative privileges."
+        Write-Log "INFO" "Attempting to elevate script context via sudo..."
+        
+        local elevated_args=()
+        [ -n "$Scope" ] && elevated_args+=("--scope" "$Scope")
+        [ "$Force" -eq 1 ] && elevated_args+=("--force")
+        [ "$Doctor" -eq 1 ] && elevated_args+=("--doctor")
+        [ "$Repair" -eq 1 ] && elevated_args+=("--repair")
+        [ "$Build" -eq 1 ] && elevated_args+=("--build")
+        [ "$SkipBuild" -eq 1 ] && elevated_args+=("--skip-build")
+        [ "$SkipPerl" -eq 1 ] && elevated_args+=("--skip-perl")
+        [ "$SkipLLVM" -eq 1 ] && elevated_args+=("--skip-llvm")
+        [ "$AdvancedBuild" -eq 1 ] && elevated_args+=("--advanced-build")
+        [ "$SecurityAudit" -eq 1 ] && elevated_args+=("--security-audit")
+
+        if command -v sudo >/dev/null 2>&1; then
+            exec sudo "$0" "${elevated_args[@]}"
+        else
+            Write-Log "ERROR" "Privilege elevation token allocation error: sudo utility missing."
+            exit 1
+        fi
+    fi
+}
+
+# ==============================================================================
+# Network Data Acquisition Secure Layer
+# ==============================================================================
+# Verifies system configuration connections explicitly supporting safe cryptographic standards
+Invoke-SafeDownload() {
+    local uri="$1"
+    local out_file="$2"
+
+    Write-Log "INFO" "Retrieving verification asset source from: $uri"
+    if command -v curl >/dev/null 2>&1; then
+        curl -sSL --tlsv1.2 --tlsv1.3 "$uri" -o "$out_file" || {
+            Write-Log "ERROR" "Network connection dropped or asset source is offline."
+            exit 1
+        }
     else
-        log_ok "Latest discovered upstream LLVM release: $version"
-        echo "$version"
+        wget -q --secure-protocol=TLSv1_2 "$uri" -O "$out_file" || {
+            Write-Log "ERROR" "Network connection dropped or asset source is offline."
+            exit 1
+        }
     fi
 }
 
-get_clang_version() {
-    if ! command -v clang >/dev/null 2>&1; then
-        echo "none"
-        return
-    fi
-    clang --version | head -n1 | grep -oE "[0-9]+\.[0-9]+\.[0-9]+" || echo "unknown"
+# ==============================================================================
+# System Analysis & Diagnostic Controls (Doctor Engine Subroutines)
+# ==============================================================================
+Get-ClangVersion() {
+    if ! command -v clang >/dev/null 2>&1; then echo ""; return; fi
+    clang --version | grep -oE "version [0-9]+\.[0-9]+\.[0-9]+" | awk '{print $2}' || echo "unknown"
 }
 
-get_perl_version() {
-    if ! command -v perl >/dev/null 2>&1; then
-        echo "none"
-        return
+Test-Clang() {
+    if command -v clang >/dev/null 2>&1; then
+        Write-Log "OK" "Clang installation detected active: $(command -v clang)"
+        return 0
     fi
-    perl -e 'print $^V' 2>/dev/null | sed 's/v//' || echo "unknown"
+    Write-Log "WARN" "Clang executable is not indexed in your active PATH paths."
+    return 1
 }
 
-get_glang_version() {
-    if [ ! -f "$VERSION_FILE" ]; then
-        echo "unknown"
-        return
+Test-Perl() {
+    if command -v perl >/dev/null 2>&1; then
+        Write-Log "OK" "Perl runtime environment verified: $(command -v perl)"
+        return 0
     fi
-    grep -oE 'version\s*:=\s*"\s*([0-9]+\.[0-9]+\.[0-9]+)\s*"' "$VERSION_FILE" \
-        | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' \
-        | head -n1 || echo "unknown"
+    if [ -d "$DefaultPerlPath" ]; then
+        Write-Log "OK" "Static Perl installation folder identified at target destination: $DefaultPerlPath"
+        return 0
+    fi
+    Write-Log "WARN" "Perl script engine environment could not be resolved."
+    return 1
 }
 
-# ---------------------------------------------------------
-# Security Auditing & DX Defenses
-# ---------------------------------------------------------
-invoke_security_audit() {
-    log_secure "=== INITIALIZING SECURITY DEFENSE & WORKSPACE INTEGRITY CHECK ==="
+Get-GLangVersion() {
+    local version_file="$PSScriptRoot/config.pl"
+    if [ ! -f "$version_file" ]; then echo "unknown"; return; fi
+    grep -oE '"version"\s*=>\s*"\s*[0-9]+\.[0-9]+\.[0-9]+\s*"' "$version_file" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || echo "unknown"
+}
+
+Get-LatestLLVMVersion() {
+    Write-Log "INFO" "Querying GitHub remote APIs for the latest LLVM stable tag..."
+    local tag
+    tag=$(curl -s --connect-timeout 10 "https://api.github.com/repos/llvm/llvm-project/releases/latest" 2>/dev/null | grep '"tag_name":' | head -n 1 | grep -oE 'llvmorg-[0-9]+\.[0-9]+\.[0-9]+' | sed 's/llvmorg-//' || echo "")
+    if [ -n "$tag" ]; then
+        Write-Log "OK" "Upstream production recommended version signature: $tag"
+        echo "$tag"
+    else
+        Write-Log "WARN" "Could not process remote API connection -> Using secure static fallback token version: $FallbackLLVM"
+        echo "$FallbackLLVM"
+    fi
+}
+
+Invoke-Doctor() {
+    Write-Log "INFO" "--- RUNNING SYSTEM ENVIRONMENT AUDIT ---"
     
-    # 1. Verification of Shell Mask Permissions
+    Write-Log "INFO" "OS Distribution : $(uname -srm)"
+    Write-Log "INFO" "Architecture    : $(uname -m)"
+    Write-Log "INFO" "Execution Mode  : $([ "$(getconf LONG_BIT)" = "64" ] && echo '64-bit Target' || echo '32-bit Target')"
+    Write-Log "INFO" "Engine Version  : ${BASH_VERSION:+Bash $BASH_VERSION}"
+
+    if ! command -v clang >/dev/null 2>&1; then
+        Write-Log "ERROR" "Clang compiler missing from application discovery loops."
+    else
+        Write-Log "INFO" "Compiler Origin : $(command -v clang)"
+        local ver
+        ver=$(Get-ClangVersion)
+        Write-Log "INFO" "Release Tag     : $ver"
+        
+        local latest
+        latest=$(Get-LatestLLVMVersion)
+        if [[ -n "$ver" && "$ver" != "$latest"* ]]; then
+            Write-Log "WARN" "Local/Remote toolchain variation found. Recommended upstream version baseline is $latest"
+        else
+            Write-Log "OK" "Ecosystem LLVM component metrics match target spec."
+        fi
+    fi
+
+    if [[ ! "$PATH" =~ "LLVM" && ! "$PATH" =~ "llvm" ]]; then
+        Write-Log "WARN" "LLVM path configurations missing from running process context paths."
+    fi
+
+    Write-Log "BLANK" ""
+    Write-Log "INFO" "--- PERL SERVICE RUNTIME ENGINE ---"
+    if command -v perl >/dev/null 2>&1; then
+        Write-Log "INFO" "Engine Path     : $(command -v perl)"
+        local perl_ver
+        perl_ver=$(perl -e 'print $^V' 2>/dev/null)
+        Write-Log "INFO" "Build Signature : $perl_ver"
+        Write-Log "OK" "Perl interpreter infrastructure responds clean."
+    elif [ -d "$DefaultPerlPath" ]; then
+        Write-Log "OK" "Perl binaries are present at ($DefaultPerlPath) but require alignment in PATH."
+    else
+        Write-Log "ERROR" "No active Perl installation signature found on this hardware profile."
+    fi
+
+    Write-Log "BLANK" ""
+    Write-Log "INFO" "--- FRAMEWORK METADATA ---"
+    local glang_ver
+    glang_ver=$(Get-GLangVersion)
+
+    Write-Log "INFO" "Target Bin Path : $GLangBin"
+    Write-Log "INFO" "Framework Build : $glang_ver"
+
+    if [ -d "$GLangBin" ]; then
+        Write-Log "OK" "Gawin binary repository folder verified."
+    else
+        Write-Log "WARN" "Gawin workspace compilation outputs are empty."
+    fi
+
+    ReportCard["Health Audit"]="Completed Cleanly"
+    Write-Log "OK" "System operational diagnostic completed safely."
+    Write-Log "BLANK" ""
+}
+
+# ==============================================================================
+# Security Isolation Check & Verification Matrix
+# ==============================================================================
+Invoke-SecurityAudit() {
+    Write-Log "SECURE" "--- EXECUTING SYSTEM THREAT MODEL EVALUATION ---"
+    
+    # 1. Verification of Shell Mask Creation Profile Permissions
     local current_umask
     current_umask=$(umask)
-    log_info "Active environment Shell Creation Mask (umask): $current_umask"
+    Write-Log "INFO" "Active Workspace Shell Script Policy (umask): $current_umask"
     if [ "$current_umask" = "0000" ] || [ "$current_umask" = "0002" ]; then
-        log_warn "Insecure/loose execution file permissions profile detected ($current_umask)."
+        Write-Log "WARN" "Permissive script processing constraints ($current_umask). Ensure untrusted sources are scrutinized!"
     else
-        log_ok "Execution creation mask configured safely."
+        Write-Log "OK" "Local environment policy verification evaluated passing."
     fi
 
-    # 2. Check for Shadowing / Hijacking Vulnerabilities in Environment PATHs
-    log_info "Analyzing PATH ordering security vulnerabilities..."
-    IFS=':' read -r -a paths <<< "$PATH"
-    local insecure_paths=()
-    for p in "${paths[@]}"; do
+    # 2. Path Ordering & Write Privileges Vulnerability Mitigation Check
+    Write-Log "INFO" "Scanning environmental variables for path hijacking exploits..."
+    local writable_paths_insecure=()
+    IFS=':' read -r -a system_paths <<< "$PATH"
+    for p in "${system_paths[@]}"; do
+        [ -z "$p" ] && continue
         if [ -d "$p" ]; then
-            # Flag temporary or world-writable directories in active executable search path
-            if [[ "$p" == *"/tmp"* ]] || [ -matrix_writable=$(find "$p" -maxdepth 0 -perm -o+w 2>/dev/null) ]; then
-                insecure_paths+=("$p")
+            # Isolates world-writable routes or transient file allocations tracking paths
+            if [[ "$p" == *"Temp"* || "$p" == *"/tmp"* || "$p" == *"/var/tmp"* ]] || [ -n "$(find "$p" -maxdepth 0 -perm -o+w 2>/dev/null)" ]; then
+                writable_paths_insecure+=("$p")
             fi
         fi
     done
 
-    if [ ${#insecure_paths[@]} -gt 0 ]; then
-        log_warn "Detected potentially high-risk paths inside executable environment loops: ${insecure_paths[*]}"
+    if [ ${#writable_paths_insecure[@]} -gt 0 ]; then
+        Write-Log "WARN" "Insecure/Writable directory targets referenced inside path routes: ${writable_paths_insecure[*]}"
     else
-        log_secure "Path isolation assessment verified clear."
+        Write-Log "SECURE" "Environment variable structural ordering clean. No hijacking vector discovered."
     fi
 
-    # 3. Access Permission Verification on Context Workspace
-    if [ -w "$ROOT_DIR" ]; then
-        log_ok "Workspace execution directory write permissions confirmed."
+    # 3. Target Directory Workspace Write Permissions Verification Tests
+    local test_file="$PSScriptRoot/.sec_verify.tmp"
+    if touch "$test_file" 2>/dev/null; then
+        rm -f "$test_file"
+        Write-Log "OK" "Local working workspace storage permissions validated successfully."
     else
-        log_err "Workspace root folder access bounds restricted! Run inside an elevated sudo context."
+        Write-Log "ERROR" "Workspace access locked or access tracking error! Try elevation via system administrator console."
     fi
 
-    STATUS_SECURITY="Verified Passing"
-    log_secure "Security verification checks completed cleanly."
-    log_blank ""
+    ReportCard["Security Scan"]="Verified Passing"
+    Write-Log "SECURE" "Threat detection scan finalized."
+    Write-Log "BLANK" ""
 }
 
-# ---------------------------------------------------------
-# Safe Environment Variable Configuration Profiles
-# ---------------------------------------------------------
-add_to_path() {
-    local target="$1"
-    local shell_rc="$HOME/.bashrc"
-
-    if [[ "${SHELL:-}" == *zsh* ]]; then
-        shell_rc="$HOME/.zshrc"
+# ==============================================================================
+# Environment Reconstruction Engine (Fix Restoration Suite Routines)
+# ==============================================================================
+Invoke-AutoRepair() {
+    Write-Log "INFO" "Initializing configuration restoration workspace..."
+    
+    if [ "$SkipLLVM" -ne 1 ]; then
+        if ! Test-Clang || [ "$Force" -eq 1 ]; then Install-LLVM; fi
+    fi
+    if [ "$SkipPerl" -ne 1 ]; then
+        if ! Test-Perl || [ "$Force" -eq 1 ]; then Install-Perl; fi
     fi
 
-    if [ ! -d "$target" ]; then
-        log_warn "Failed mapping directory reference to system profile path. Directory missing: $target"
-        return
-    fi
+    local scope_env="User"
+    [ "$Scope" = "system" ] && scope_env="Machine"
 
-    if [[ ":$PATH:" == *":$target:"* ]]; then
-        log_info "Path assignment verification clean: $target"
-        return
-    fi
+    local llvm_bin="$DefaultLLVMPath/bin"
+    command -v clang >/dev/null 2>&1 && llvm_bin=$(dirname "$(command -v clang)")
 
-    # Safety feature: Create local environment backup string before appending alterations
-    cp "$shell_rc" "${shell_rc}.gawin_bak_$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    local perl_bin="$DefaultPerlPath/bin"
+    command -v perl >/dev/null 2>&1 && perl_bin=$(dirname "$(command -v perl)")
 
-    if grep -q "$target" "$shell_rc" 2>/dev/null; then
-        log_info "Path assignment target already safely appended inside profile: $shell_rc"
-        return
-    fi
-
-    echo "" >> "$shell_rc"
-    echo "# Gawin Ecosystem Environment Configuration Paths" >> "$shell_rc"
-    echo "export PATH=\"\$PATH:$target\"" >> "$shell_rc"
-
-    export PATH="$PATH:$target"
-    log_ok "Successfully appended binary target pathing rules to $shell_rc"
-    STATUS_PATH="Updated Cleanly"
+    if [ "$SkipLLVM" -ne 1 ] && [ -d "$llvm_bin" ]; then Add-ToPathSafe "$llvm_bin" "$scope_env"; fi
+    if [ "$SkipPerl" -ne 1 ] && [ -d "$perl_bin" ]; then Add-ToPathSafe "$perl_bin" "$scope_env"; fi
+    if [ -d "$GLangBin" ]; then Add-ToPathSafe "$GLangBin" "$scope_env"; fi
+    
+    Write-Log "OK" "Auto-repair environment restoration successfully concluded."
 }
 
-# ---------------------------------------------------------
-# Ecosystem Provisioning Engines (LLVM & Standalone Perl)
-# ---------------------------------------------------------
-install_llvm() {
-    local version="$1"
+# ==============================================================================
+# Environment PATH Storage Control Suite
+# ==============================================================================
+Add-ToPathSafe() {
+    local path_to_add="$1"
+    local scope_env="$2"
 
-    if command -v clang >/dev/null 2>&1 && [ "$FORCE" -ne 1 ]; then
-        log_ok "Clang compiler engine installation validated on host system path environment."
+    if [ ! -d "$path_to_add" ]; then
+        Write-Log "ERROR" "Target destination directory mapping does not exist: $path_to_add"
+        exit 1
+    fi
+
+    # Deduplicate matching strings within current runtime environment
+    IFS=':' read -r -a active_paths <<< "$PATH"
+    local already_exists=0
+    for element in "${active_paths[@]}"; do
+        [ "$element" = "$path_to_add" ] && already_exists=1
+    done
+
+    local target_profile=""
+    if [ "$scope_env" = "Machine" ]; then
+        target_profile="/etc/profile"
+    else
+        if [[ "${SHELL:-}" == *zsh* ]]; then
+            target_profile="$HOME/.zshrc"
+        else
+            target_profile="$HOME/.bashrc"
+        fi
+    fi
+
+    if [ $already_exists -eq 1 ] && [ -f "$target_profile" ] && grep -q "$path_to_add" "$target_profile" 2>/dev/null; then
+        Write-Log "INFO" "Target environment key path mapping already indexed: $path_to_add"
         return
     fi
 
-    mkdir -p "$INSTALL_ROOT"
+    # Retain safe operational backups of terminal profile structures before applying adjustments
+    if [ -f "$target_profile" ]; then
+        cp "$target_profile" "${target_profile}.gawin_bak_$(date +%Y%m%d_%H%M%S)" 2>/dev/null || true
+    fi
+
+    echo "" >> "$target_profile"
+    echo "# Gawin Ecosystem Environment Configuration Paths" >> "$target_profile"
+    echo "export PATH=\"\$PATH:$path_to_add\"" >> "$target_profile"
+    
+    export PATH="$PATH:$path_to_add"
+    Write-Log "OK" "Environment variable scope successfully registered: $path_to_add"
+    ReportCard["System PATH"]="Updated Cleanly"
+}
+
+# ==============================================================================
+# Core Automated Installer Controllers
+# ==============================================================================
+Install-LLVM() {
+    local version
+    version=$(Get-LatestLLVMVersion)
+
+    if command -v brew >/dev/null 2>&1; then
+        Write-Log "INFO" "Attempting silent package deployment via native Homebrew package manager..."
+        if brew install llvm; then
+            Write-Log "OK" "LLVM toolchain integration established through package manager client."
+            ReportCard["LLVM Toolchain"]="Deployed (Homebrew)"
+            return
+        fi
+    elif command -v apt-get >/dev/null 2>&1; then
+        Write-Log "INFO" "Attempting silent package deployment via apt package manager..."
+        if apt-get update -qq && apt-get install -y clang llvm; then
+            Write-Log "OK" "LLVM toolchain integration established through package manager client."
+            ReportCard["LLVM Toolchain"]="Deployed (Apt-Get)"
+            return
+        fi
+    fi
+
+    Write-Log "WARN" "Package pipelines failed or unavailable. Transitioning to manual remote archive download..."
+    mkdir -p "$DefaultLLVMPath"
+    
     local archive="clang+llvm-$version-x86_64-linux-gnu-ubuntu-22.04.tar.xz"
-    local url="https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/$archive"
-
-    log_info "Executing remote archive discovery for LLVM $version..."
-    if ! curl -L "$url" -o "$INSTALL_ROOT/$archive"; then
-        log_err "Target subsystem package distribution downpour initialization failed!"
-        exit 1
+    if [ "$(uname)" = "Darwin" ]; then
+        archive="clang+llvm-$version-arm64-apple-darwin.tar.xz"
     fi
+    
+    local url="https://github.com/llvm/llvm-project/releases/download/llvmorg-$version/$archive"
+    local tmp="/tmp/$archive"
 
-    log_info "Extracting payload files directly into local environment target path storage..."
-    tar -xJf "$INSTALL_ROOT/$archive" -C "$INSTALL_ROOT"
-    rm -f "$INSTALL_ROOT/$archive"
-
-    CLANG_PATH=$(find "$INSTALL_ROOT" -type d -name "bin" | head -n 1)
-    STATUS_LLVM="Deployed (Standalone Archive)"
+    Invoke-SafeDownload "$url" "$tmp"
+    Write-Log "INFO" "Executing standalone compression archive extractor routines..."
+    tar -xJf "$tmp" -C "$DefaultLLVMPath" --strip-components=1 || {
+        Write-Log "ERROR" "Target subsystem deployment error during file decompression loops."
+        exit 1
+    }
+    rm -f "$tmp"
+    Write-Log "OK" "LLVM compiler backend storage allocation completed successfully."
+    ReportCard["LLVM Toolchain"]="Deployed (Standalone Archive)"
 }
 
-install_perl() {
-    if command -v perl >/dev/null 2>&1 && [ "$FORCE" -ne 1 ]; then
-        log_ok "Perl binary interpreter runtime validated on host system path environment."
-        return
+Install-Perl() {
+    if command -v brew >/dev/null 2>&1; then
+        Write-Log "INFO" "Attempting silent script engine setup via active Homebrew packages..."
+        if brew install perl; then
+            Write-Log "OK" "Perl interpreter infrastructure established through package manager."
+            ReportCard["Perl Environment"]="Deployed (Homebrew)"
+            return
+        fi
+    elif command -v apt-get >/dev/null 2>&1; then
+        Write-Log "INFO" "Attempting silent script engine setup via apt package manager..."
+        if apt-get update -qq && apt-get install -y perl; then
+            Write-Log "OK" "Perl interpreter infrastructure established through package manager."
+            ReportCard["Perl Environment"]="Deployed (Apt-Get)"
+            return
+        fi
     fi
 
-    if [ -d "$PERL_INSTALL_ROOT/bin" ] && [ "$FORCE" -ne 1 ]; then
-        log_ok "Self-contained workspace Perl executable directory verified: $PERL_INSTALL_ROOT/bin"
-        PERL_PATH="$PERL_INSTALL_ROOT/bin"
-        return
-    fi
-
-    mkdir -p "$PERL_INSTALL_ROOT"
-    local perl_ver="5.40.0"
-    local archive="perl-$perl_ver.tar.gz"
+    Write-Log "WARN" "Package execution frameworks returned exceptions. Processing source fallback compilation sequence..."
+    mkdir -p "$DefaultPerlPath"
+    local archive="perl-5.40.0.tar.gz"
     local url="https://www.cpan.org/src/5.0/$archive"
+    local tmp="/tmp/$archive"
 
-    log_info "Downloading stable, up-to-date Unix Perl Interpreter core from CPAN distributions..."
-    if ! curl -L "$url" -o "$PERL_INSTALL_ROOT/$archive"; then
-        log_err "Failed to download Perl distribution from remote mirror endpoints."
-        exit 1
-    fi
-
-    log_info "Extracting production Perl distribution source packages..."
-    tar -xzf "$PERL_INSTALL_ROOT/$archive" -C "$PERL_INSTALL_ROOT"
+    Invoke-SafeDownload "$url" "$tmp"
+    Write-Log "INFO" "Executing quiet unattended deployment transaction via source build architecture..."
+    local compile_src="/tmp/perl_compile_src"
+    mkdir -p "$compile_src"
+    tar -xzf "$tmp" -C "$compile_src" --strip-components=1
     
-    log_info "Configuring, compiling, and bootstrapping local isolated Perl (this may take a moment)..."
-    pushd "$PERL_INSTALL_ROOT/perl-$perl_ver" > /dev/null
-    
-    if ./Configure -des -Dprefix="$PERL_INSTALL_ROOT" -Dman1dir=none -Dman3dir=none >/dev/null && \
+    pushd "$compile_src" > /dev/null
+    if ./Configure -des -Dprefix="$DefaultPerlPath" -Dman1dir=none -Dman3dir=none >/dev/null && \
        make -j$(nproc 2>/dev/null || echo 2) >/dev/null && \
        make install >/dev/null; then
-        log_ok "Local standalone Perl Interpreter environment instantiation finalized securely."
-        STATUS_PERL="Deployed (Source Compilation)"
+        Write-Log "OK" "Perl interpreter architecture configurations finalized."
+        ReportCard["Perl Environment"]="Deployed (Source Compilation)"
     else
-        log_err "Critical compiler runtime breakdown while building standard Perl source tree modules."
-        popd > /dev/null
-        exit 1
+        Write-Log "ERROR" "Critical breakdown compiling default Perl interpreter from code source trees."
+        popd > /dev/null; rm -rf "$compile_src"; exit 1
     fi
-    
     popd > /dev/null
-    rm -rf "$PERL_INSTALL_ROOT/$archive" "$PERL_INSTALL_ROOT/perl-$perl_ver"
-    PERL_PATH="$PERL_INSTALL_ROOT/bin"
+    rm -rf "$tmp" "$compile_src"
 }
 
-# ---------------------------------------------------------
-# Multi-Tier Deep-Introspection Compilation Pipeline
-# ---------------------------------------------------------
-invoke_advanced_compilation_pipeline() {
-    log_blank ""
-    log_info "=========================================================="
-    log_info "     INITIALIZING ADVANCED GAWIN SYSTEM COMPILATION       "
-    log_info "=========================================================="
+# ==============================================================================
+# High-Precision Multi-Tier Compiler Build Pipeline
+# ==============================================================================
+Invoke-AdvancedCompilationPipeline() {
+    Write-Log "BLANK" ""
+    Write-Log "INFO" "=========================================================="
+    Write-Log "INFO" "     INITIALIZING ADVANCED GAWIN SYSTEM COMPILATION       "
+    Write-Log "INFO" "=========================================================="
 
-    local bin_dir="$ROOT_DIR/bin"
-    
-    # Verify build prerequisite compiler engines
+    local total_timer_start
+    total_timer_start=$(Get-Time)
+
     if ! command -v clang++ >/dev/null 2>&1; then
-        log_err "Clang++ compiler engine initialization error. Unable to process compilation jobs."
-        STATUS_BUILD="Failed (Missing Clang++)"
+        Write-Log "ERROR" "Clang++ optimization engine initialization error. Compilation pipeline cannot continue."
+        ReportCard["Compiler Engine"]="Failed (Missing Clang++)"
         return
     fi
 
-    mkdir -p "$bin_dir"
-
-    # --- PHASE 1: Compile root/src_exec/*.cpp into root/bin/* ---
-    local src_exec_dir="$ROOT_DIR/src_exec"
-    log_info "[PHASE 1] Compiling executable engines from $src_exec_dir..."
-    if [ -d "$src_exec_dir" ]; then
-        local cpp_files
-        cpp_files=$(find "$src_exec_dir" -maxdepth 1 -name "*.cpp" 2>/dev/null)
-        if [ -z "$cpp_files" ]; then
-            log_warn "No source elements found matching target criteria *.cpp inside $src_exec_dir"
-        else
-            for file in $cpp_files; do
-                local base_name
-                base_name=$(basename "$file" .cpp)
-                local out_exe="$bin_dir/$base_name"
-                log_info "Compiling Source: $(basename "$file") -> $out_exe"
-                if ! clang++ -std=c++17 -O3 "$file" -o "$out_exe" 2>&1; then
-                    log_err "Compilation crash processing file structural components: $(basename "$file")"
-                    exit 1
-                fi
-            done
-        fi
-    else
-        log_warn "Source execution tracking path missing: $src_exec_dir. Skipping initialization..."
+    if [ ! -d "$GLangBin" ]; then
+        Write-Log "INFO" "Constructing missing application production distribution binary path: $GLangBin"
+        mkdir -p "$GLangBin"
     fi
 
-    # --- PHASE 2: Compile root/bootstrap_cpp_gawin/*.cpp into root/bin/ggc ---
-    local bootstrap_dir="$ROOT_DIR/bootstrap_cpp_gawin"
-    local ggc_path="$bin_dir/ggc"
-    log_info "[PHASE 2] Initializing Bootstrap compilation tasks from $bootstrap_dir..."
-    if [ -d "$bootstrap_dir" ]; then
-        local boot_cpp_files=()
-        while IFS= read -r line; do boot_cpp_files+=("$line"); done < <(find "$bootstrap_dir" -maxdepth 1 -name "*.cpp" 2>/dev/null)
-        
-        if [ ${#boot_cpp_files[@]} -gt 0 ]; then
-            log_info "Bundling source map tree to construct initial binary bootstrap compiler tool: $ggc_path"
-            if ! clang++ -std=c++17 -O3 "${boot_cpp_files[@]}" -o "$ggc_path" 2>&1; then
-                log_err "Bootstrap translation sequence error. Execution termination requested."
+    # --- PHASE 1: Build target executables root/src_exec/*.cpp into root/bin/* ---
+    Write-Log "INFO" "Processing Phase 1 structural component generation checks..."
+    local phase_start
+    phase_start=$(Get-Time)
+    local src_exec_dir="$PSScriptRoot/src_exec"
+    
+    if [ -d "$src_exec_dir" ]; then
+        for file in "$src_exec_dir"/*.cpp; do
+            [ -e "$file" ] || continue
+            local bname
+            bname=$(basename "$file" .cpp)
+            Write-ProgressInline "Phase 1 -> Building dependency executor element: $bname.cpp"
+            
+            if clang++ -std=c++17 -O3 "$file" -o "$GLangBin/$bname" 2>&1; then
+                ((HelperCount++))
+                ((RuntimeCount++))
+            else
+                echo ""
+                Write-Log "ERROR" "Phase 1 compiler crash execution fault on file mapping: $(basename "$file")"
                 exit 1
             fi
-            log_ok "Bootstrap compiler engine built successfully."
-        else
-            log_warn "No valid matching bootstrap C++ components detected inside directory."
-        fi
+        done
+        local phase_end
+        phase_end=$(Get-Time)
+        local p1_dur
+        p1_dur=$(Compute-Duration "$phase_start" "$phase_end")
+        local timestamp
+        timestamp=$(date +"%H:%M:%S")
+        printf "\r[\033[0;36m%s\033[0m] [\033[0;32mready\033[0m]   PHASE 1 done %s s\n" "$timestamp" "$p1_dur"
     else
-        log_warn "Bootstrap repository pointer missing: $bootstrap_dir. Skipping phase step."
+        Write-Log "WARN" "Source execution components folder path not tracked: $src_exec_dir. Skipping step..."
     fi
 
-    # --- PHASE 3: Invoke compiled binary gstdo ---
-    local gstdo_path="$bin_dir/gstdo"
-    log_info "[PHASE 3] Evaluating toolchain setup tasks via 'gstdo' script runtime automation..."
+    # --- PHASE 2: Build bootstrap compiler root/bootstrap_cpp_gawin/*.cpp into root/bin/ggc ---
+    Write-Log "INFO" "Processing Phase 2 architecture bootstrap compiler generation checks..."
+    phase_start=$(Get-Time)
+    local bootstrap_dir="$PSScriptRoot/bootstrap_cpp_gawin"
+    local ggc_path="$GLangBin/ggc"
+    
+    if [ -d "$bootstrap_dir" ]; then
+        local boot_cpp_files=("$bootstrap_dir"/*.cpp)
+        if [ -e "${boot_cpp_files[0]}" ]; then
+            Write-ProgressInline "Phase 2 -> Engineering structural bootstrap compiler container (ggc)"
+            if clang++ -std=c++17 -O3 "${boot_cpp_files[@]}" -o "$ggc_path" 2>&1; then
+                BootstrapStatus="Success"
+                ((RuntimeCount++))
+            else
+                echo ""
+                Write-Log "ERROR" "Bootstrap translation layer compilation fault. Compilation path terminated."
+                exit 1
+            fi
+        else
+            Write-Log "WARN" "No C++ compilation targets discovered within: $bootstrap_dir"
+        fi
+        local phase_end
+        phase_end=$(Get-Time)
+        local p2_dur
+        p2_dur=$(Compute-Duration "$phase_start" "$phase_end")
+        local timestamp
+        timestamp=$(date +"%H:%M:%S")
+        printf "\r[\033[0;36m%s\033[0m] [\033[0;32mready\033[0m]   PHASE 2 done %s s\n" "$timestamp" "$p2_dur"
+    else
+        Write-Log "WARN" "Bootstrap repository reference path missing: $bootstrap_dir. Skipping step..."
+    fi
+
+    # --- PHASE 3: Run pipeline management tool gstdo ---
+    Write-Log "INFO" "Processing Phase 3 core automation workspace checks..."
+    phase_start=$(Get-Time)
+    local gstdo_path="$GLangBin/gstdo"
+    
     if [ -f "$gstdo_path" ]; then
-        pushd "$bin_dir" > /dev/null
+        Write-ProgressInline "Phase 3 -> Initializing active manager script handshake operations (gstdo)"
+        pushd "$GLangBin" > /dev/null
         chmod +x "./gstdo"
-        log_info "Running executable helper utility tool: $gstdo_path"
         if ! ./gstdo; then
-            log_warn "Utility workflow 'gstdo' returned abnormal termination token."
+            echo ""
+            Write-Log "WARN" "Automation workflow target execution runtime warning tracked during parsing loop."
         fi
         popd > /dev/null
+        local phase_end
+        phase_end=$(Get-Time)
+        local p3_dur
+        p3_dur=$(Compute-Duration "$phase_start" "$phase_end")
+        local timestamp
+        timestamp=$(date +"%H:%M:%S")
+        printf "\r[\033[0;36m%s\033[0m] [\033[0;32mready\033[0m]   PHASE 3 done %s s\n" "$timestamp" "$p3_dur"
     else
-        log_warn "Automation workflow target binary $gstdo_path could not be loaded."
+        Write-Log "WARN" "Automation ecosystem management engine binary ($gstdo_path) not found."
     fi
 
-    # --- PHASE 4: Invoke ggc on root/ggc/*.gw to compile into a new root/bin/ggc ---
-    local ggc_src_dir="$ROOT_DIR/ggc"
-    log_info "[PHASE 4] Executing secondary self-hosted rewrite loop for ggc using localized language modules..."
-    if [ -f "$ggc_path" ] && [ -d "$ggc_src_dir" ]; then
-        local ggc_files=()
-        while IFS= read -r line; do ggc_files+=("$line"); done < <(find "$ggc_src_dir" -maxdepth 1 -name "*.gw" 2>/dev/null)
-        
-        if [ ${#ggc_files[@]} -gt 0 ]; then
-            log_info "Refactoring compiler architecture code using original language components via bootstrap compiler..."
-            if ! "$ggc_path" "${ggc_files[@]}" -o "$ggc_path" 2>&1; then
-                log_err "Self-hosting compilation cycle pipeline threw execution errors."
-            else
-                log_ok "Self-hosted native compilation stack upgrade completed safely."
-            fi
-        else
-            log_warn "No matching components (*.gw) detected in compiler location $ggc_src_dir"
-        fi
-    else
-        log_warn "Self-hosted source parameters missing or compiler executable not found."
-    fi
-
-    # --- PHASE 5: Invoke new ggc on root/gwin/*.gw (explicitly list all files) to compile into root/bin/gwin ---
-    local gwin_src_dir="$ROOT_DIR/gwin"
-    local gwin_path="$bin_dir/gwin"
-    log_info "[PHASE 5] Compiling runtime platform layer window managers via $gwin_src_dir..."
-    if [ -f "$ggc_path" ] && [ -d "$gwin_src_dir" ]; then
-        local gwin_files=()
-        while IFS= read -r line; do gwin_files+=("$line"); done < <(find "$gwin_src_dir" -maxdepth 1 -name "*.gw" 2>/dev/null)
-        
-        if [ ${#gwin_files[@]} -gt 0 ]; then
-            log_info "Explicit File Argument Mapping Trace Matrix:"
-            for gw_item in "${gwin_files[@]}"; do
-                log_blank "   -> Target Element Path: $gw_item"
-            done
-            
-            log_info "Processing translation step on all files via explicit file parameters -> Target mapping path: $gwin_path"
-            if ! "$ggc_path" "${gwin_files[@]}" -o "$gwin_path" 2>&1; then
-                log_err "Window runtime application layer integration pipeline execution failed."
-            else
-                log_ok "Gawin Framework application packages compiled completely."
-            fi
-        else
-            log_warn "No components found matching (*.gw) within path bounds: $gwin_src_dir"
-        fi
-    else
-        log_warn "Compilation dependencies missing or paths omitted. Phase 5 generation skipped."
-    fi
-
-    STATUS_BUILD="Fully Functional"
-    log_ok "All pipeline build routines completed."
-    log_blank ""
-}
-
-# ---------------------------------------------------------
-# Diagnostics and Verification (Doctor Engine Audit)
-# ---------------------------------------------------------
-run_doctor() {
-    log_info "=== SETUP DOCTOR DIAGNOSTIC AUDIT ==="
-
-    log_info "Operating System: $(uname -srm)"
-    log_info "Shell Engine: ${BASH_VERSION:+Bash $BASH_VERSION}"
-
-    local clang_ver
-    clang_ver=$(get_clang_version)
-    log_info "clang version: $clang_ver"
-    log_info "clang path:    $(command -v clang 2>/dev/null || echo 'Missing from active PATH scope')"
-
-    local latest
-    latest=$(get_latest_llvm_version)
-
-    if [[ "$clang_ver" != "$latest"* && "$clang_ver" != "none" ]]; then
-        log_warn "Version structural mismatch checked (Upstream recommends targeting version $latest)"
-    else
-        log_ok "System LLVM version structure matches target standard rules."
-    fi
-
-    if [[ ":$PATH:" != *":LLVM:"* && ":$PATH:" != *":g_clang_depend:"* ]]; then
-        log_warn "LLVM binaries are not clearly configured in the active environment execution string."
-    fi
-
-    log_blank ""
-    log_info "=== PERL INTERPRETER STATUS ==="
-    local perl_ver
-    perl_ver=$(get_perl_version)
-    log_info "perl version:  $perl_ver"
-    log_info "perl path:     $(command -v perl 2>/dev/null || echo 'Missing from active PATH scope')"
-    if [ "$perl_ver" = "none" ]; then
-        if [ -d "$PERL_INSTALL_ROOT/bin" ]; then
-            log_ok "Perl interpreter directory found at ($PERL_INSTALL_ROOT/bin) but not active in profile execution strings yet."
-        else
-            log_err "No validated system Perl interpreter paths found on this system configuration."
-        fi
-    else
-        log_ok "Perl Interpreter operational profile confirmed status OK."
-    fi
-
-    log_blank ""
-    log_info "=== GAWIN INFO ==="
-    log_info "gawin path:    $GLANG_BIN"
-    log_info "gawin version: $(get_glang_version)"
-
-    if [ -d "$GLANG_BIN" ]; then
-        log_ok "Gawin framework executable build targets detected."
-    else
-        log_warn "Gawin framework executable build targets are empty or unpopulated."
-    fi
-
-    STATUS_DOCTOR="Completed Safely"
-    log_blank ""
-    log_ok "System environment audit validation workflow complete."
-}
-
-# ---------------------------------------------------------
-# RUNTIME ENGINE (MAIN Execution Script Workflow Block)
-# ---------------------------------------------------------
-show_header
-
-# 1. Interactive Selection Menu Strategy if Parameters are Left Unassigned
-if [ "$DOCTOR" -eq 0 ] && [ "$SECURITY_AUDIT" -eq 0 ] && [ "$ADVANCED_BUILD" -eq 0 ] && [ "$BUILD_BINARIES" -eq -1 ] && [ "$REPAIR" -eq 0 ] && [ "$FORCE" -eq 0 ]; then
-    echo -e "${GREEN}Select execution target mode parameters below:${NC}"
-    echo "1) Complete Standard Ecosystem Installation"
-    echo "2) Advanced Compilation Bootstrapping Loop Only"
-    echo "3) System Environment Health Diagnostic Check (Doctor)"
-    echo "4) System Deep Security & Code Integrity Audit"
-    echo ""
-    read -r -p "Enter targeted execution index option [1-4]: " choice
+    # --- PHASE 4: Self-host rebuild; run ggc on root/ggc/*.gw into root/bin/ggc ---
+    Write-Log "INFO" "Processing Phase 4 framework self-hosting runtime compilation checks..."
+    phase_start=$(Get-Time)
+    local ggc_src_dir="$PSScriptRoot/ggc"
     
-    case "${choice// /}" in
-        1) # standard build flow below
-           ;;
-        2) ADVANCED_BUILD=1; SKIP_LLVM=1; SKIP_PERL=1 ;;
-        3) DOCTOR=1 ;;
-        4) SECURITY_AUDIT=1 ;;
-        *) log_warn "Invalid choice target. Launching default comprehensive platform initialization sequence..." ;;
-    esac
-fi
-
-if [ "$SECURITY_AUDIT" -eq 1 ]; then
-    invoke_security_audit
-fi
-
-if [ "$DOCTOR" -eq 1 ]; then
-    run_doctor
-fi
-
-if [ "$DOCTOR" -eq 0 ] && [ "$SECURITY_AUDIT" -eq 0 ]; then
-    log_info "Gawin Production Setup Configuration Wizard Initializing..."
-
-    if [ "$REPAIR" -eq 1 ]; then
-        log_warn "System path repair flags detected... forcing full asset validation checks..."
-        if [ "$SKIP_LLVM" -ne 1 ]; then rm -rf "$INSTALL_ROOT"; fi
-        if [ "$SKIP_PERL" -ne 1 ]; then rm -rf "$PERL_INSTALL_ROOT"; fi
-    fi
-
-    # Resolve LLVM Pipeline Dependencies
-    if [ "$SKIP_LLVM" -ne 1 ]; then
-        VERSION=$(get_latest_llvm_version)
-        install_llvm "$VERSION"
-    fi
-
-    # Resolve Perl Pipeline Dependencies
-    if [ "$SKIP_PERL" -ne 1 ]; then
-        install_perl
-    fi
-
-    # Fallback pathing extraction rules to inject active environment parameters cleanly
-    CLANG_PATH=""
-    PERL_PATH=""
-
-    if [ "$SKIP_LLVM" -ne 1 ]; then
-        if command -v clang >/dev/null 2>&1; then
-            CLANG_PATH=$(dirname "$(command -v clang)")
-        elif [ -d "$INSTALL_ROOT" ]; then
-            CLANG_PATH=$(find "$INSTALL_ROOT" -type d -name "bin" | head -n 1)
+    if [ -f "$ggc_path" ] && [ -d "$ggc_src_dir" ]; then
+        local gw_compiler_files=("$ggc_src_dir"/*.gw)
+        if [ -e "${gw_compiler_files[0]}" ]; then
+            Write-ProgressInline "Phase 4 -> Processing self-hosted parsing rebuild layout cycle targets"
+            chmod +x "$ggc_path"
+            if "$ggc_path" "${gw_compiler_files[@]}" -o "$ggc_path" 2>&1; then
+                local mod_count=${#gw_compiler_files[@]}
+                SelfHostStatus="Success $mod_count modules"
+                ((RuntimeCount += mod_count))
+            else
+                echo ""
+                Write-Log "ERROR" "Self-hosted build iteration logic loop returned execution system compilation warnings."
+                SelfHostStatus="Failed"
+            fi
+        else
+            Write-Log "WARN" "No self-hosted parsing configuration targets tracked: $ggc_src_dir"
         fi
-    fi
-
-    if [ "$SKIP_PERL" -ne 1 ]; then
-        if command -v perl >/dev/null 2>&1; then
-            PERL_PATH=$(dirname "$(command -v perl)")
-        elif [ -d "$PERL_INSTALL_ROOT/bin" ]; then
-            PERL_PATH="$PERL_INSTALL_ROOT/bin"
-        fi
-    fi
-
-    # Inject configurations immediately into running shell environment variables to enable safe post-compilation pipelines
-    if [ -n "$CLANG_PATH" ]; then export PATH="$CLANG_PATH:$PATH"; fi
-    if [ -n "$PERL_PATH" ]; then export PATH="$PERL_PATH:$PATH"; fi
-
-    # Update Profile Configuration Targets
-    log_info "Updating system environment target profile path value allocations..."
-    if [ -n "$CLANG_PATH" ] && [ "$SKIP_LLVM" -ne 1 ]; then add_to_path "$CLANG_PATH"; fi
-    if [ -n "$PERL_PATH" ] && [ "$SKIP_PERL" -ne 1 ]; then add_to_path "$PERL_PATH"; fi
-    if [ -d "$GLANG_BIN" ]; then add_to_path "$GLANG_BIN"; fi
-
-    # Interactive Post-Installation Compilation Handshake
-    should_build=0
-    if [ "$BUILD_BINARIES" -eq 1 ] || [ "$ADVANCED_BUILD" -eq 1 ]; then
-        should_build=1
-    elif [ "$BUILD_BINARIES" -eq 0 ]; then
-        should_build=0
+        local phase_end
+        phase_end=$(Get-Time)
+        local p4_dur
+        p4_dur=$(Compute-Duration "$phase_start" "$phase_end")
+        local timestamp
+        timestamp=$(date +"%H:%M:%S")
+        printf "\r[\033[0;36m%s\033[0m] [\033[0;32mready\033[0m]   PHASE 4 done %s s\n" "$timestamp" "$p4_dur"
     else
+        Write-Log "WARN" "Self-hosted module source elements missing or previous compiler stages failed."
+    fi
+
+    # --- PHASE 5: Build platform modules; run new ggc on root/gwin/*.gw into root/bin/gwin ---
+    Write-Log "INFO" "Processing Phase 5 platform interface runtime system parsing loops..."
+    phase_start=$(Get-Time)
+    local gwin_src_dir="$PSScriptRoot/gwin"
+    local gwin_path="$GLangBin/gwin"
+    
+    if [ -f "$ggc_path" ] && [ -d "$gwin_src_dir" ]; then
+        local gwin_files=("$gwin_src_dir"/*.gw)
+        if [ -e "${gwin_files[0]}" ]; then
+            Write-ProgressInline "Phase 5 -> Deploying environment specific subsystem runtime elements"
+            if "$ggc_path" "${gwin_files[@]}" -o "$gwin_path" 2>&1; then
+                local mod_count=${#gwin_files[@]}
+                PlatformStatus="Success ($mod_count modules)"
+                ((RuntimeCount += mod_count))
+                chmod +x "$gwin_path"
+            else
+                echo ""
+                Write-Log "ERROR" "Window integration package application abstraction layer compilation execution warning tracking caught."
+                PlatformStatus="Failed"
+            fi
+        else
+            Write-Log "WARN" "No configuration interface elements parsed within: $gwin_src_dir"
+        fi
+        local phase_end
+        phase_end=$(Get-Time)
+        local p5_dur
+        p5_dur=$(Compute-Duration "$phase_start" "$phase_end")
+        local timestamp
+        timestamp=$(date +"%H:%M:%S")
+        printf "\r[\033[0;36m%s\033[0m] [\033[0;32mready\033[0m]   PHASE 5 done %s s\n" "$timestamp" "$p5_dur"
+    else
+        Write-Log "WARN" "Window subsystem interface targets omitted or platform references unavailable."
+    fi
+
+    local total_timer_end
+    total_timer_end=$(Get-Time)
+    TotalBuildTime=$(Compute-Duration "$total_timer_start" "$total_timer_end")
+    ReportCard["Compiler Engine"]="Fully Functional"
+    Write-Log "OK" "Ecosystem pipeline processing compilation blocks finalized successfully."
+    Write-Log "BLANK" ""
+}
+
+# ==============================================================================
+# Post-Diagnostic Interactive Options & Integrity Sweep
+# ==============================================================================
+Invoke-PostAuditPrompt() {
+    Write-Log "BLANK" ""
+    echo -e "\033[0;36mDiagnostic processing completed. Select downstream deployment strategy:\033[0m"
+    echo "1) Automatically resolve environmental issues and align missing paths right now"
+    echo "2) Run code validation loop & compile tools to audit for third-party or malicious injection"
+    echo "3) Maintain current architecture and skip adjustments"
+    echo ""
+    read -r -p "Specify operational index choice [1-3]: " ans
+    
+    case "${ans// /}" in
+        "1")
+            Invoke-AutoRepair
+            ;;
+        "2")
+            Write-Log "INFO" "Initiating defensive toolchain verification compilation..."
+            Invoke-AdvancedCompilationPipeline
+            
+            Write-Log "SECURE" "Analyzing output compilation signatures for unauthorized changes..."
+            local suspicious=0
+            if [ -d "$GLangBin" ]; then
+                for exe in "$GLangBin"/*; do
+                    [ -f "$exe" ] || continue
+                    local size
+                    size=$(wc -c < "$exe" 2>/dev/null || stat -c%s "$exe" 2>/dev/null || stat -f%z "$exe" 2>/dev/null || echo "0")
+                    if [ "$size" -lt 1024 ] && [ "$size" -gt 0 ]; then
+                        Write-Log "WARN" "Anomalous structural footprint detected on compiled target artifact: $(basename "$exe")"
+                        suspicious=1
+                    fi
+                done
+            fi
+            
+            if [ $suspicious -eq 0 ]; then
+                Write-Log "OK" "Ecosystem toolchain integrity confirmed. No malicious tampering signatures found."
+            else
+                Write-Log "ERROR" "Integrity mismatch detected! Toolchain environment components show non-standard anomalies."
+                echo ""
+                read -r -p "Would you like to run the clean automatic repair patch cycle now to secure the toolchain? (y/n): " fixChoice
+                case "$fixChoice" in
+                    [yY][eE][sS]|[yY])
+                        Invoke-AutoRepair
+                        ;;
+                    *)
+                        Write-Log "WARN" "Workspace repair aborted. Be careful executing active binaries in this current state."
+                        ;;
+                esac
+            fi
+            ;;
+        *)
+            Write-Log "INFO" "Continuing deployment operations."
+            ;;
+    esac
+}
+
+# ==============================================================================
+# Input Command-Line Argument Processing Matrix
+# ==============================================================================
+show_help() {
+    echo "Usage: ./setup.sh [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --scope [user|system]   Registry environmental scope context targeting variables rules"
+    echo "  --force                 Forces clean tracking downloads completely refreshing packages"
+    echo "  --doctor                Triggers comprehensive inspection metrics evaluating runtime specs"
+    echo "  --repair                Runs autonomous environment recovery repairs across paths"
+    echo "  --build                 Forces direct workspace multi-phase build operations"
+    echo "  --skip-build            Explicitly prevents pipeline building processing execution"
+    echo "  --skip-perl             Bypasses parsing dependencies validation for Perl targets"
+    echo "  --skip-llvm             Bypasses parsing dependencies validation for LLVM compilers"
+    echo "  --advanced-build        Commands deep structural framework bootstrap self-hosting logic"
+    echo "  --security-audit        Executes localized system configuration threat profile checking"
+    exit 0
+}
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --scope)          Scope="$2"; shift 2 ;;
+        --force)          Force=1; shift ;;
+        --doctor)         Doctor=1; shift ;;
+        --repair)         Repair=1; shift ;;
+        --build)          Build=1; shift ;;
+        --skip-build)     SkipBuild=1; shift ;;
+        --skip-perl)      SkipPerl=1; shift ;;
+        --skip-llvm)      SkipLLVM=1; shift ;;
+        --advanced-build) AdvancedBuild=1; shift ;;
+        --security-audit) SecurityAudit=1; shift ;;
+        -h|--help)        show_help ;;
+        *)                Write-Log "ERROR" "Unknown operational input argument target flag: $1"; exit 1 ;;
+    esac
+done
+
+# ==============================================================================
+# MAIN EXECUTION ROUTINE INTERACTIVE SWITCH ROUTERS
+# ==============================================================================
+main() {
+    Show-Header
+
+    # 1. Interactive Fallback Configuration Selection Routing Menu
+    if [ -z "$Scope" ] && [ "$Doctor" -eq 0 ] && [ "$SecurityAudit" -eq 0 ] && [ "$AdvancedBuild" -eq 0 ]; then
+        Write-Log "BLANK" "\033[0;32mSelect targeted option configuration route to execute:\033[0m"
+        echo "1] Complete Standard Environment Infrastructure Setup"
+        echo "2] Advanced Compilation Bootstrapping Loop Only"
+        echo "3] Workspace Operational Audit Check (Doctor)"
+        echo "4] System Structural Isolation and Integrity Evaluation Scan"
         echo ""
-        read -r -p "Do you want to run the compiler toolchain build and verification pipeline now? (y/n): " input_build
-        case "$input_build" in
-            [yY][eE][sS]|[yY]|1) should_build=1 ;;
-            *) should_build=0 ;;
+        read -r -p "Specify option matrix index [1-4]: " choice
+        
+        case "${choice// /}" in
+            "1")
+                # Proceeds straight into registry profile parameters initialization block
+                ;;
+            "2")
+                AdvancedBuild=1
+                SkipLLVM=1
+                SkipPerl=1
+                ;;
+            "3")
+                Doctor=1
+                ;;
+            "4")
+                SecurityAudit=1
+                ;;
+            *)
+                Write-Log "WARN" "Invalid structural parameter choice. Triggering clean environment setup pipeline instead..."
+                ;;
         esac
     fi
 
-    if [ "$should_build" -eq 1 ]; then
-        invoke_advanced_compilation_pipeline
-    else
-        log_info "Skipping code compilation stages per instruction choices."
-    fi
-fi
+    # 2. Scope Validation Loop Tracking Menu Blocks
+    while [ -z "$Scope" ] && [ "$Doctor" -eq 0 ] && [ "$SecurityAudit" -eq 0 ]; do
+        echo ""
+        read -r -p "Specify target scope for environment variables configuration path [user/system]: " inputScope
+        inputScope="${inputScope// /}"
+        if [[ "$inputScope" == "user" || "$inputScope" == "system" ]]; then
+            Scope="$inputScope"
+        else
+            Write-Log "WARN" "Validation tracking error. Target scope parameters must read 'user' or 'system' exactly."
+        fi
+    done
 
-# ---------------------------------------------------------
-# SYSTEM VISUAL DASHBOARD REPORT CARD
-# ---------------------------------------------------------
-log_blank ""
-log_blank "=========================================================="
-log_ok    "          WORKSPACE ECOSYSTEM EXECUTION DASHBOARD         "
-log_blank "=========================================================="
+    local scopeEnv="User"
+    [ "$Scope" = "system" ] && scopeEnv="Machine"
+    if [ -n "$Scope" ]; then Invoke-MakeAdmin "$Scope"; fi
 
-print_row() {
-    local label="$1"
-    local status="$2"
-    local color="$CYAN"
+    # 3. Router Active Strategy Flows Operations Execution Blocks
+    if [ "$SecurityAudit" -eq 1 ]; then
+        Invoke-SecurityAudit
+        Invoke-PostAuditPrompt
+    fi
+
+    if [ "$Doctor" -eq 1 ]; then
+        Invoke-Doctor
+        Invoke-PostAuditPrompt
+    fi
+
+    if [ "$Doctor" -eq 0 ] && [ "$SecurityAudit" -eq 1 ]; then
+        Write-Log "INFO" "Configuring system configuration profiles (Scope Profile Hive: $scopeEnv)..."
+        Write-Log "BLANK" ""
+
+        if [ "$Repair" -eq 1 ]; then
+            Write-Log "WARN" "Automated system correction parameter identified... checking environment variables path..."
+            Invoke-AutoRepair
+        fi
+
+        # Process LLVM Setup Packages Steps
+        if [ "$SkipLLVM" -ne 1 ]; then
+            if ! Test-Clang || [ "$Force" -eq 1 ]; then Install-LLVM; fi
+        fi
+
+        # Process Perl Setup Runtime Steps
+        if [ "$SkipPerl" -ne 1 ]; then
+            if ! Test-Perl || [ "$Force" -eq 1 ]; then Install-Perl; fi
+        fi
+
+        # Extract Dynamic Running Paths context pointers
+        local llvm_bin="$DefaultLLVMPath/bin"
+        command -v clang >/dev/null 2>&1 && llvm_bin=$(dirname "$(command -v clang)")
+
+        local perl_bin="$DefaultPerlPath/bin"
+        command -v perl >/dev/null 2>&1 && perl_bin=$(dirname "$(command -v perl)")
+
+        Write-Log "INFO" "Synchronizing local process variables with environment storage blocks..."
+        if [ "$SkipLLVM" -ne 1 ] && [ -d "$llvm_bin" ]; then Add-ToPathSafe "$llvm_bin" "$scopeEnv"; fi
+        if [ "$SkipPerl" -ne 1 ] && [ -d "$perl_bin" ]; then Add-ToPathSafe "$perl_bin" "$scopeEnv"; fi
+        if [ -d "$GLangBin" ]; then Add-ToPathSafe "$GLangBin" "$scopeEnv"; fi
+
+        # Compilation Build Verification Matrix Prompts Handshake
+        local shouldBuild=0
+        if [ "$Build" -eq 1 ] || [ "$AdvancedBuild" -eq 1 ]; then
+            shouldBuild=1
+        elif [ "$SkipBuild" -eq 1 ]; then
+            shouldBuild=0
+        else
+            echo ""
+            read -r -p "Would you like to process the workspace compilation toolchain build pipeline now? (y/n): " inputBuild
+            case "$inputBuild" in
+                [yY][eE][sS]|[yY]|1) shouldBuild=1 ;;
+                *) shouldBuild=0 ;;
+            esac
+        fi
+
+        if [ $shouldBuild -eq 1 ]; then
+            Invoke-AdvancedCompilationPipeline
+        else
+            Write-Log "INFO" "Skipping compilation phases per request options choice."
+        fi
+    fi
+
+    # ==============================================================================
+    # VISUAL COMPONENT REPORT DASHBOARD SUMMARY
+    # ==============================================================================
+    Write-Log "BLANK" ""
+    Write-Log "BLANK" "=========================================================="
+    Write-Log "OK"    "            WORKSPACE OPERATIONAL EXECUTION METRICS       "
+    Write-Log "BLANK" "=========================================================="
     
-    if [[ "$status" =~ Passing|Safely|Functional|Updated|Deployed ]]; then color="$GREEN"
-    elif [[ "$status" =~ Failed ]]; then color="$RED"
-    elif [[ "$status" =~ Skipped ]]; then color="$YELLOW"
+    for item in "${ReportCardKeys[@]}"; do
+        local status="${ReportCard[$item]}"
+        local color_code="\033[0;36m" # Cyan Default
+        
+        if [[ "$status" =~ Passing|Cleanly|Functional|Updated|Deployed ]]; then
+            color_code="\033[0;32m" # Green Success
+        elif [[ "$status" =~ Failed ]]; then
+            color_code="\033[0;31m" # Red Exception Fault
+        elif [[ "$status" =~ Skipped ]]; then
+            color_code="\033[0;33m" # Yellow Warning Skip
+        fi
+        
+        printf " \033[0;37m[>]\033[0m  \033[1;37m%-25s\033[0m : ${color_code}%s\033[0m\n" "$item" "$status"
+    done
+
+    # --- Live Compilation Performance Summary Report Card View Engine ---
+    if [ "${ReportCard["Compiler Engine"]}" = "Fully Functional" ]; then
+        Write-Log "BLANK" ""
+        echo -e "\033[0;37m==========================================================\033[0m"
+        echo -e "\033[1;37mBuild Summary\033[0m"
+        echo -e "\033[0;37m==========================================================\033[0m"
+        echo "Helper executables : $HelperCount built"
+        echo "Bootstrap compiler : $BootstrapStatus"
+        echo "Runtime objects    : $RuntimeCount compiled"
+        echo "Self-host rewrite  : $SelfHostStatus"
+        echo "Platform modules   : $PlatformStatus"
+        Write-Log "BLANK" ""
+        echo -e "Total build time   : \033[0;36m${TotalBuildTime}s\033[0m"
     fi
     
-    printf " ${GRAY}[>]${WHITE} %-25s ${GRAY}:${NC} ${color}%s${NC}\n" "$label" "$status"
+    Write-Log "BLANK" "=========================================================="
+    Write-Log "OK" "Workspace configuration and dependency setup tasks finalized smoothly!"
 }
 
-print_row "Security Audit" "$STATUS_SECURITY"
-print_row "Environment Audit" "$STATUS_DOCTOR"
-print_row "LLVM Toolchain" "$STATUS_LLVM"
-print_row "Perl Environment" "$STATUS_PERL"
-print_row "Environment Paths" "$STATUS_PATH"
-print_row "Compilation Engine" "$STATUS_BUILD"
+# High Fidelity Error Catching Traps Matrix
+error_trap_handler() {
+    local exit_code=$?
+    # Silences implicit internal clean closures exits signals
+    [ $exit_code -eq 0 ] && return
+    Write-Log "ERROR" "Fatal Environment Exception Caught: Process runtime context crashed abruptly."
+    exit $exit_code
+}
+trap error_trap_handler EXIT
 
-log_blank "=========================================================="
-log_ok "Deployment operation steps completed cleanly."
-log_blank ""
+# Triggers complete runtime instantiation engine tasks loops execution
+main

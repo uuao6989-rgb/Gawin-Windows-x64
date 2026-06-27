@@ -101,6 +101,15 @@ function Write-Log {
     }
 }
 
+function Write-ProgressInline {
+    param(
+        [string]$Message
+    )
+    $Timestamp = Get-Date -Format "HH:mm:ss"
+    # Overwrites the current line using a carriage return and pads space to prevent visual ghosts
+    Write-Host -NoNewline "`r[$Timestamp] [info]    $Message".PadRight(95) -ForegroundColor Cyan
+}
+
 function Show-Header {
     Write-Log BLANK "=========================================================="
     Write-Log BLANK "      GAWIN & GLANG HIGH-PERFORMANCE WORKSPACE SETUP      "
@@ -209,11 +218,11 @@ function Test-Perl {
 
 function Get-GLangVersion {
     try {
-        $versionFile = Join-Path $PSScriptRoot "glang_meta\VERSION.gwin"
+        $versionFile = Join-Path $PSScriptRoot "config.pl"
         if (-not (Test-Path $versionFile)) { return "unknown" }
 
         $content = Get-Content $versionFile -Raw
-        if ($content -match 'version\s*:=\s*"\s*([0-9]+\.[0-9]+\.[0-9]+)\s*"') {
+        if ($content -match '"version"\s*\=\>\s*"\s*([0-9]+\.[0-9]+\.[0-9]+)\s*"') {
             return $matches[1]
         }
         return "unknown"
@@ -392,7 +401,6 @@ function Invoke-PostAuditPrompt {
             $builtExes = Get-ChildItem $GLangBin -Filter "*.exe" -ErrorAction SilentlyContinue
             
             foreach ($exe in $builtExes) {
-                # Safeguard check: Malicious file stubs or code injection corruptions often alter standard byte dimensions unexpectedly
                 if ($exe.Length -lt 1024) {
                     Write-Log WARN "Anomalous structural footprint detected on compiled target artifact: $($exe.Name)"
                     $suspicious = $true
@@ -430,7 +438,6 @@ function Get-PathList($scope) {
 function Set-PathList($list, $scope) {
     $newPath = ($list | Select-Object -Unique) -join ';'
     
-    # Create persistent system registry snapshot for crash recovery prior to structural modifications
     $backupKeyName = "Path_Gawin_Backup_$(Get-Date -Format 'yyyyMMdd_HHmmss')"
     [Environment]::SetEnvironmentVariable($backupKeyName, [Environment]::GetEnvironmentVariable("Path", $scope), $scope)
     
@@ -564,18 +571,21 @@ function Invoke-AdvancedCompilationPipeline {
     if (Test-Path $srcExecDir) {
         $cppFiles = Get-ChildItem (Join-Path $srcExecDir "*.cpp") -ErrorAction SilentlyContinue
         foreach ($file in $cppFiles) {
+            Write-ProgressInline "Phase 1 -> Building dependency executor element: $($file.Name)"
             $outExe = Join-Path $binDir ($file.BaseName + ".exe")
             & clang++ "-std=c++17" "-O3" $file.FullName "-o" $outExe 2>&1
             if ($LASTEXITCODE -eq 0) {
                 $Global:BuildStats.HelperCount++
                 $Global:BuildStats.RuntimeCount++
             } else {
+                Write-Host ""
                 Write-Log ERROR "Phase 1 compiler crash execution fault on file mapping: $($file.Name)"
                 throw "Phase 1 compilation pipeline break exception."
             }
         }
         $phaseTimer.Stop()
-        Write-Host "PHASE 1  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
+        $Timestamp = Get-Date -Format "HH:mm:ss"
+        Write-Host "`r[$Timestamp] [ready]   PHASE 1 done $($phaseTimer.Elapsed.TotalSeconds.ToString("F2")) s".PadRight(95) -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
         Write-Log WARN "Source execution components folder path not tracked: $srcExecDir. Skipping step..."
@@ -590,16 +600,19 @@ function Invoke-AdvancedCompilationPipeline {
     if (Test-Path $bootstrapDir) {
         $bootCppFiles = Get-ChildItem (Join-Path $bootstrapDir "*.cpp") -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
         if ($bootCppFiles) {
+            Write-ProgressInline "Phase 2 -> Engineering structural bootstrap compiler container (ggc.exe)"
             & clang++ "-std=c++17" "-O3" $bootCppFiles "-o" $ggcPath 2>&1
             if ($LASTEXITCODE -eq 0) {
                 $Global:BuildStats.BootstrapStatus = "Success"
                 $Global:BuildStats.RuntimeCount++
             } else {
+                Write-Host ""
                 throw "Bootstrap translation layer compilation fault. Compilation path terminated."
             }
         }
         $phaseTimer.Stop()
-        Write-Host "PHASE 2  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
+        $Timestamp = Get-Date -Format "HH:mm:ss"
+        Write-Host "`r[$Timestamp] [ready]   PHASE 2 done $($phaseTimer.Elapsed.TotalSeconds.ToString("F2")) s".PadRight(95) -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
         Write-Log WARN "Bootstrap repository reference path missing: $bootstrapDir. Skipping step..."
@@ -611,16 +624,19 @@ function Invoke-AdvancedCompilationPipeline {
     $gstdoPath = Join-Path $binDir "gstdo.exe"
     
     if (Test-Path $gstdoPath) {
+        Write-ProgressInline "Phase 3 -> Initializing active manager script handshake operations (gstdo.exe)"
         Push-Location $binDir
         try {
             & .\gstdo.exe
         } catch {
+            Write-Host ""
             Write-Log WARN "Automation workflow target execution runtime warning tracked during parsing loop."
         } finally {
             Pop-Location
         }
         $phaseTimer.Stop()
-        Write-Host "PHASE 3  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
+        $Timestamp = Get-Date -Format "HH:mm:ss"
+        Write-Host "`r[$Timestamp] [ready]   PHASE 3 done $($phaseTimer.Elapsed.TotalSeconds.ToString("F2")) s".PadRight(95) -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
         Write-Log WARN "Automation ecosystem management engine binary ($gstdoPath) not found."
@@ -634,17 +650,20 @@ function Invoke-AdvancedCompilationPipeline {
     if ((Test-Path $ggcPath) -and (Test-Path $ggcSrcDir)) {
         $gwCompilerFiles = Get-ChildItem (Join-Path $ggcSrcDir "*.gw") -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
         if ($gwCompilerFiles) {
+            Write-ProgressInline "Phase 4 -> Processing self-hosted parsing rebuild layout cycle targets"
             & $ggcPath $gwCompilerFiles "-o" $ggcPath 2>&1
             if ($LASTEXITCODE -eq 0) {
-                $Global:BuildStats.SelfHostStatus = "Success ($($gwCompilerFiles.Count) modules)"
+                $Global:BuildStats.SelfHostStatus = "Success $($gwCompilerFiles.Count) modules"
                 $Global:BuildStats.RuntimeCount += $gwCompilerFiles.Count
             } else {
+                Write-Host ""
                 Write-Log ERROR "Self-hosted build iteration logic loop returned execution system compilation warnings."
                 $Global:BuildStats.SelfHostStatus = "Failed"
             }
         }
         $phaseTimer.Stop()
-        Write-Host "PHASE 4  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
+        $Timestamp = Get-Date -Format "HH:mm:ss"
+        Write-Host "`r[$Timestamp] [ready]   PHASE 4 done $($phaseTimer.Elapsed.TotalSeconds.ToString("F2")) s".PadRight(95) -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
         Write-Log WARN "Self-hosted module source elements missing or previous compiler stages failed."
@@ -659,17 +678,20 @@ function Invoke-AdvancedCompilationPipeline {
     if ((Test-Path $ggcPath) -and (Test-Path $gwinSrcDir)) {
         $gwinFiles = Get-ChildItem (Join-Path $gwinSrcDir "*.gw") -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName
         if ($gwinFiles) {
+            Write-ProgressInline "Phase 5 -> Deploying environment specific subsystem runtime elements"
             & $ggcPath $gwinFiles "-o" $gwinPath 2>&1
             if ($LASTEXITCODE -eq 0) {
                 $Global:BuildStats.PlatformStatus = "Success ($($gwinFiles.Count) modules)"
                 $Global:BuildStats.RuntimeCount += $gwinFiles.Count
             } else {
+                Write-Host ""
                 Write-Log ERROR "Window integration package application abstraction layer compilation execution warning tracking caught."
                 $Global:BuildStats.PlatformStatus = "Failed"
             }
         }
         $phaseTimer.Stop()
-        Write-Host "PHASE 5  ✓ $($phaseTimer.Elapsed.TotalSeconds.ToString("F1")) s" -ForegroundColor Green
+        $Timestamp = Get-Date -Format "HH:mm:ss"
+        Write-Host "`r[$Timestamp] [ready]   PHASE 5 done $($phaseTimer.Elapsed.TotalSeconds.ToString("F2")) s".PadRight(95) -ForegroundColor Green
     } else {
         $phaseTimer.Stop()
         Write-Log WARN "Window subsystem interface targets omitted or platform references unavailable."
@@ -691,10 +713,10 @@ try {
     # 1. Interactive Fallback Configuration Selection
     if (-not $Scope -and -not $Doctor -and -not $SecurityAudit -and -not $AdvancedBuild) {
         Write-Host "Select targeted option configuration route to execute:" -ForegroundColor Green
-        Write-Host "1) Complete Standard Environment Infrastructure Setup"
-        Write-Host "2) Advanced Compilation Bootstrapping Loop Only"
-        Write-Host "3) Workspace Operational Audit Check (Doctor)"
-        Write-Host "4) System Structural Isolation & Integrity Evaluation Scan"
+        Write-Host "1] Complete Standard Environment Infrastructure Setup"
+        Write-Host "2] Advanced Compilation Bootstrapping Loop Only"
+        Write-Host "3] Workspace Operational Audit Check (Doctor)"
+        Write-Host "4] System Structural Isolation and Integrity Evaluation Scan"
         Write-Host ""
         
         $choice = Read-Host "Specify option matrix index [1-4]"
