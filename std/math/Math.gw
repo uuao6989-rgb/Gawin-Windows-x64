@@ -3,7 +3,7 @@ module math
 
 pub const _SQRT2: f128 := 1.4142135623730950488016887242096981
 
-pub func ilog2[type RT = default](l: RT) -> i32 {
+pub func ilog2(l: f128) -> i32 {
 
     x: f128 := l as f128
 
@@ -31,7 +31,7 @@ pub func ilog2[type RT = default](l: RT) -> i32 {
     return exp
 }
 
-pub func pow2[type RT = default](e: RT) -> f128 {
+pub func pow2(e: f128) -> f128 {
 
     exponent: i32 := e as i32
 
@@ -65,7 +65,7 @@ pub func pow2[type RT = default](e: RT) -> f128 {
     return result
 }
 
-pub func sqrt[type RT = default](arg: RT) -> f128 {
+pub func sqrt(arg: f128) -> f128 {
 
     x: f128 := arg as f128
 
@@ -74,8 +74,7 @@ pub func sqrt[type RT = default](arg: RT) -> f128 {
             "[ERROR] Squareroot of a negative number is not supported in 'math', use 'cmath' for complex number arithmetic."
         )
     }
-
-    if x == 0.0 {
+    else if x == 0.0 {
         return 0.0
     }
 
@@ -97,6 +96,83 @@ pub func sqrt[type RT = default](arg: RT) -> f128 {
         prev = guess
 
         guess = 0.5 * (guess + (x / guess))
+    }
+
+    return guess
+}
+
+// Internal compile-time helper or runtime helper to compute base^exp safely
+// customized for the root finding algorithm to avoid extra code baggage.
+func ipow(base: f128, exp: i32) -> f128 {
+    if exp == 0 { return 1.0 }
+    
+    result: f128 := 1.0
+    b: f128 := base
+    e: i32 := exp
+    
+    if e < 0 {
+        b = 1.0 / b
+        e = -e
+    }
+    
+    while e > 0 {
+        if e % 2 == 1 {
+            result *= b
+        }
+        b *= b
+        e /= 2
+    }
+    return result
+}
+
+pub func root[const n: i32 = 2](arg: f128) -> f128 {
+    // Compile-time specialization routing
+    const if n == 2 { 
+        return sqrt(arg) 
+    }
+    const if n == 1 {
+        return arg
+    }
+    const if n <= 0 {
+        panic("[ERROR] Root exponent 'n' must be a positive non-zero integer specification.")
+    }
+
+    x: f128 := arg
+
+    if x < 0.0 {
+        if n % 2 != 0 {
+            return -root[n](-x)
+        }
+        panic("[ERROR] Negative values are not supported for even roots in 'math'.")
+    }
+    else if x == 0.0 {
+        return 0.0
+    }
+
+    // Cast the compile-time structural constant to integer passes
+    n_i32: i32 := n
+    n_f128: f128 := n as f128
+
+    // 1. Initial Guess Approximation
+    // We scale down the ilog2 approximation to distribute the guess across the nth-power domain.
+    exponent: i32 := ilog2(x)
+    guess: f128 := pow2((exponent / n_f128) as f128)
+
+    prev: f128 := 0.0
+    
+    // To handle potential float-accuracy alternating micro-oscillations, 
+    // we also track an ultra-fine epsilon or a iteration limiter loop.
+    max_iter: i32 := 128
+
+    // 2. Newton-Raphson Iteration Core
+    while (guess != prev) && (max_iter > 0) {
+        prev = guess
+        
+        // General formula calculation: guess = (1/n) * ((n-1)*guess + x/(guess^(n-1)))
+        denominator_power: f128 := ipow(guess, n_i32 - 1)
+        
+        guess = (1.0 / n_f128) * (((n_f128 - 1.0) * guess) + (x / denominator_power))
+        max_iter -= 1
     }
 
     return guess

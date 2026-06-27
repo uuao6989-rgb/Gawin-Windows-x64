@@ -1,0 +1,18 @@
+std/
+    core/
+        errors/
+            Errors.gw
+        optionals/
+            Optionals.gw
+        references/
+            References.gw
+        vector/
+            Vector.gw
+        Core.gw
+    math/
+        Math.gw
+    tuple-duo-triple/
+        Duo.gw
+        Triple.gw
+        Tuple.gw
+    Std.gw
