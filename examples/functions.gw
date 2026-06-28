@@ -8,6 +8,12 @@ func main() {
         s then s
     }
 
-    println(value)
-}
+    // otherwise you can also very much do
 
+    value2 := possible_error("Hello") else err /* bind the error to the variable "err" (automatic; normally used for your own alias) */ {
+        panic("[ERROR]: $(err)")
+    }
+
+    println(value)
+    println(value2)
+}
